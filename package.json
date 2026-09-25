@@ -1,0 +1,14 @@
+{
+  "name": "moderation-bot",
+  "version": "1.0.0",
+  "description": "Bot Discord dédié à la modération (ban/kick/mute/warn/clear/lockdown)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.6.1"
+  }
+}
