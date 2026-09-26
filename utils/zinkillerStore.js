@@ -61,7 +61,22 @@ function remove(guildId, userId) {
 
 /** @returns {{ userId: string, reason: string|null, moderatorId: string, at: number }[]} */
 function list(guildId) {
-  return Object.entries(guildEntry(guildId)).map(([userId, info]) => ({ userId, ...info }));
+  return Object.entries(guildEntry(guildId))
+    .filter(([key]) => key !== "__config")
+    .map(([userId, info]) => ({ userId, ...info }));
 }
 
-module.exports = { isZinkilled, add, remove, list };
+function getConfig(guildId) {
+  const cfg = guildEntry(guildId).__config || {};
+  return { enabled: cfg.enabled !== false };
+}
+
+function setEnabled(guildId, enabled) {
+  const data = load();
+  if (!data[guildId]) data[guildId] = {};
+  if (!data[guildId].__config) data[guildId].__config = {};
+  data[guildId].__config.enabled = enabled;
+  save();
+}
+
+module.exports = { isZinkilled, add, remove, list, getConfig, setEnabled };

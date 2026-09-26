@@ -1,6 +1,7 @@
 require("dotenv").config();
 const { Client, GatewayIntentBits, MessageFlags } = require("discord.js");
-const { getPrefix } = require("./utils/prefixStore");
+const statsStore = require("./utils/statsStore");
+const { getPrefix, setPrefix } = require("./utils/prefixStore");
 const { ADMIN_COMMANDS } = require("./utils/adminCommands");
 const { moderationHandlers } = require("./utils/moderationCommands");
 const moderationExtra = require("./utils/moderationExtra");
@@ -57,6 +58,7 @@ function parseFirstTarget(args) {
 // ---- Commandes texte préfixées ----
 client.on("messageCreate", async (message) => {
   if (message.author.bot || !message.guild) return;
+  statsStore.record(message.guild.id, "messages");
 
   const content = message.content.trim();
   const prefix = getPrefix(message.guild.id);
@@ -109,7 +111,7 @@ client.on("messageCreate", async (message) => {
     if (mot === "set" && (args[0] || "").toLowerCase() === "muterole") return await moderationExtra.setMuteRole(client, message, args.slice(1));
 
     const handler = ADMIN_COMMANDS[mot] || moderationHandlers[mot] || moderationExtra[mot];
-    if (handler) await handler(client, message, args);
+    if (handler && commandsStore.isEnabledForGuild(mot, message.guild.id)) await handler(client, message, args);
   } catch (err) {
     console.error(`[moderation-bot] erreur sur "${mot}" :`, err);
   }
@@ -157,6 +159,7 @@ client.on("interactionCreate", async (interaction) => {
 
 // ---- Ban persistant (-zinkiller) : re-bannit si débanni ailleurs que par -unzinkiller ----
 client.on("guildBanRemove", async (ban) => {
+  if (zinkillerStore.getConfig(ban.guild.id).enabled === false) return;
   const entry = zinkillerStore.isZinkilled(ban.guild.id, ban.user.id) ? zinkillerStore.remove(ban.guild.id, ban.user.id) : null;
   // remove() a déjà retiré l'entrée : un futur débannissement légitime
   // (-unzinkiller) ne se re-déclenchera pas dessus.
@@ -178,6 +181,20 @@ setInterval(() => {
   moderationExtra.checkExpiredTempbans(client).catch((err) => console.error("[tempban]", err));
 }, 30_000);
 
+// Statistiques du panel (voir utils/statsStore.js) : comptées en mémoire,
+// écrites toutes les 60s et à l'arrêt — jamais à chaque message.
+client.on("guildMemberAdd", (member) => statsStore.record(member.guild.id, "joins"));
+client.on("guildMemberRemove", (member) => statsStore.record(member.guild.id, "leaves"));
+setInterval(() => statsStore.flush(), 60_000);
+// pm2 restart envoie SIGINT : sans ce handler, jusqu'à 60s de statistiques
+// perdues à chaque redémarrage.
+function arretPropre() {
+  statsStore.flush();
+  process.exit(0);
+}
+process.on("SIGINT", arretPropre);
+process.on("SIGTERM", arretPropre);
+
 process.on("unhandledRejection", (reason) => {
   console.error("[moderation-bot] promesse rejetée sans traitement :", reason?.stack || reason);
 });
@@ -185,4 +202,118 @@ process.on("uncaughtException", (err) => {
   console.error("[moderation-bot] exception non rattrapée :", err?.stack || err);
 });
 
+const PANEL_COMMANDS = [
+  { name: "prefix", category: "Admin", description: "Change le prefixe des commandes du bot." },
+  { name: "rename", category: "Admin", description: "Renomme le bot sur ce serveur." },
+  { name: "owner", category: "Admin", description: "Gere le proprietaire du bot." },
+  { name: "setrole", category: "Admin", description: "Definit un role requis pour une fonction." },
+  { name: "sysadd", category: "Admin", description: "Active un systeme sur ce serveur." },
+  { name: "sysdel", category: "Admin", description: "Desactive un systeme sur ce serveur." },
+  { name: "ban", category: "Moderation", description: "Bannit un membre." },
+  { name: "unban", category: "Moderation", description: "Debannit un membre." },
+  { name: "banall", category: "Moderation", description: "Bannit plusieurs membres a la fois." },
+  { name: "unbanall", category: "Moderation", description: "Debannit tous les membres bannis." },
+  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs)." },
+  { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
+  { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
+  { name: "kick", category: "Moderation", description: "Expulse un membre du serveur." },
+  { name: "softban", category: "Moderation", description: "Bannit puis debannit immediatement (purge les messages)." },
+  { name: "timeout", category: "Moderation", description: "Mute temporairement un membre (timeout Discord)." },
+  { name: "untimeout", category: "Moderation", description: "Retire le timeout d'un membre." },
+  { name: "modlogs", category: "Moderation", description: "Consulte l'historique de moderation d'un membre." },
+  { name: "clear", category: "Moderation", description: "Supprime des messages en masse." },
+  { name: "purge", category: "Moderation", description: "Purge des messages selon des criteres." },
+  { name: "lockdown", category: "Moderation", description: "Verrouille le serveur/un salon." },
+  { name: "unlockdown", category: "Moderation", description: "Deverrouille le serveur/un salon." },
+  { name: "panic", category: "Moderation", description: "Active le mode panique (verrouillage d'urgence)." },
+  { name: "mute", category: "Moderation", description: "Reduit un membre au silence." },
+  { name: "tempmute", category: "Moderation", description: "Mute temporaire d'un membre." },
+  { name: "unmute", category: "Moderation", description: "Retire le mute d'un membre." },
+  { name: "cmute", category: "Moderation", description: "Mute un membre sur un salon precis." },
+  { name: "tempcmute", category: "Moderation", description: "Mute temporaire sur un salon precis." },
+  { name: "uncmute", category: "Moderation", description: "Retire le mute d'un salon precis." },
+  { name: "mutelist", category: "Moderation", description: "Liste les membres actuellement mute." },
+  { name: "unmuteall", category: "Moderation", description: "Retire tous les mutes actifs." },
+  { name: "warn", category: "Moderation", description: "Avertit un membre." },
+  { name: "warnings", category: "Moderation", description: "Liste les avertissements d'un membre." },
+  { name: "unwarn", category: "Moderation", description: "Retire un avertissement." },
+  { name: "tempban", category: "Moderation", description: "Bannit temporairement un membre." },
+  { name: "banlist", category: "Moderation", description: "Liste les membres bannis." },
+  { name: "hideall", category: "Moderation", description: "Cache tous les salons pour @everyone." },
+  { name: "unhideall", category: "Moderation", description: "Reaffiche tous les salons." },
+  { name: "derank", category: "Moderation", description: "Retire tous les roles d'un membre." },
+];
+
+const logStore = require("./utils/logStore");
+
+// Message configurable depuis le panel : le DM envoyé à chaque membre avant
+// -banall (même donnée que "-banall message <texte>"). Texte brut, d'où
+// fields: ["description"] — le panel n'affiche pas de titre/couleur ignorés.
+const banAllDmStoreForPanel = require("./utils/banAllDmStore");
+const banAllDmMessage = {
+  key: "banall-dm",
+  label: "DM du ban de masse",
+  description: "Envoyé en DM à chaque membre avant d'être banni par -banall. Vide = aucun DM.",
+  fields: ["description"],
+  get(guildId) {
+    return {
+      key: "banall-dm",
+      guildId,
+      title: null,
+      description: banAllDmStoreForPanel.getDmMessage(guildId),
+      color: null,
+      imageUrl: null,
+      thumbnailUrl: null,
+      footer: null,
+      buttons: [],
+      updatedAt: null,
+    };
+  },
+  set(guildId, patch) {
+    if (patch.description !== undefined) {
+      const text = typeof patch.description === "string" ? patch.description.trim() : "";
+      banAllDmStoreForPanel.setDmMessage(guildId, text || null);
+    }
+    return banAllDmMessage.get(guildId);
+  },
+};
+
+const MODERATION_SYSTEMS = [
+  {
+    key: "zinkiller",
+    label: "Zinkiller (ban persistant)",
+    description: "Re-bannit automatiquement un membre s'il est débanni ailleurs que par -unzinkiller. Désactiver ce système coupe le re-ban auto pour tout le serveur, sans vider la liste.",
+    icon: "shield-ban",
+    category: "Sécurité",
+    getState(guildId) {
+      const cfg = zinkillerStore.getConfig(guildId) || {};
+      return { enabled: !!cfg.enabled, config: { membres: zinkillerStore.list(guildId).length }, updatedAt: null };
+    },
+    setState(guildId, patch) {
+      if (typeof patch.enabled === "boolean") zinkillerStore.setEnabled(guildId, patch.enabled);
+      const cfg = zinkillerStore.getConfig(guildId) || {};
+      return { enabled: !!cfg.enabled, config: { membres: zinkillerStore.list(guildId).length }, updatedAt: null };
+    },
+  },
+];
+
+require("./utils/apiServer")(client, {
+  port: process.env.PANEL_API_PORT || 4003,
+  apiKey: process.env.PANEL_API_KEY,
+  botName: "Moderation",
+  commands: PANEL_COMMANDS,
+  commandsStore,
+  getPrefix,
+  setPrefix,
+  logStore,
+  statsStore,
+  statsMetrics: [
+    { metric: "messages", title: "Messages" },
+    { metric: "joins", title: "Member joins" },
+    { metric: "leaves", title: "Member leaves" },
+    { metric: "sanctions", title: "Actions de modération" },
+  ],
+  messageStore: banAllDmMessage,
+  systems: MODERATION_SYSTEMS,
+});
 client.login(process.env.DISCORD_TOKEN);

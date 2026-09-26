@@ -1,5 +1,7 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } = require("discord.js");
 const { getLogChannelId } = require("./modLogStore");
+const logStore = require("./logStore");
+const statsStore = require("./statsStore");
 
 // Version réduite de discord-music-bot/utils/moderationLog.js : ce bot ne
 // gère qu'UNE catégorie de logs ("moderation"), donc ni relais d'audit-log
@@ -20,6 +22,8 @@ function formatTimestamp() {
  * @param {{ title: string, fields: {label: string, value: string}[], moderatorId?: string|null, moderatorTag?: string|null, reason?: string|null }} entry
  */
 async function postModerationEntry(client, guildId, { title, fields, moderatorId = null, moderatorTag = null, reason = null }) {
+  logStore.record(guildId, { type: "event", level: "info", message: title, metadata: { category: "moderation", fields, moderatorId, moderatorTag, reason } });
+  statsStore.record(guildId, "sanctions");
   const channelId = getLogChannelId(guildId);
   if (!channelId) return;
 
