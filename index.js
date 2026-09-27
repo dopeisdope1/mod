@@ -13,11 +13,23 @@ const { help, handleHelpNavInteraction, CUSTOM_ID: HELP_CUSTOM_ID } = require(".
 const listNavigator = require("./utils/listNavigator");
 const zinkillerStore = require("./utils/zinkillerStore");
 const messageOwner = require("./utils/messageOwner");
+const commandsStore = require("./utils/commandsStore");
+const commandRules = require("./utils/commandRules");
+const accessStore = require("./utils/accessStore");
+const { config, handleConfigInteraction, CUSTOM_ID: CONFIG_ID } = require("./utils/configCommand");
 
 // Liste FIXE — construite une seule fois au chargement, jamais recréée à
 // chaque clic (même principe que discord-music-bot/index.js et
 // secure-bot/index.js).
-const PANNEAUX_PRIVES = [`${BAN_ID}:`, `${BANALL_ID}:`, `${UNBANALL_ID}:`, `${BANINFO_ID}:`, `${HELP_CUSTOM_ID}:`, `${listNavigator.CUSTOM_ID}:`];
+const PANNEAUX_PRIVES = [
+  `${BAN_ID}:`,
+  `${BANALL_ID}:`,
+  `${UNBANALL_ID}:`,
+  `${BANINFO_ID}:`,
+  `${HELP_CUSTOM_ID}:`,
+  `${listNavigator.CUSTOM_ID}:`,
+  `${CONFIG_ID}:`,
+];
 
 const client = new Client({
   intents: [
@@ -54,8 +66,20 @@ client.on("messageCreate", async (message) => {
   const mot = (cmd || "").toLowerCase();
   if (!mot) return;
 
+  // Filtre &panel > "Gestion des commandes" (utils/commandRules.js) —
+  // additionnel au moteur de permissions existant (can()), jamais un
+  // remplacement. Owner/rang sys gardent toujours un accès total. "help" et
+  // "panel" restent toujours accessibles, comme sur les 3 autres bots.
+  if (mot !== "help" && mot !== "panel") {
+    const bypass = accessStore.isOwner(message.author.id) || accessStore.isSys(message.author.id);
+    const enabled = commandsStore.isEnabledForGuild(mot, message.guild.id);
+    const rulesAllow = bypass || commandRules.evaluate(message.guild.id, mot, message.member, message.channel?.id, true).allowed;
+    if (!enabled || !rulesAllow) return;
+  }
+
   try {
     if (mot === "help") return await help(client, message);
+    if (mot === "panel") return await config(client, message);
     if (mot === "ban") return await handleBan(client, message, args);
     if (mot === "unban") return await handleUnban(client, message, args);
     if (mot === "banall") return await handleBanAll(client, message, args);
@@ -108,6 +132,9 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  if (interaction.customId?.startsWith(`${CONFIG_ID}:`)) {
+    return handleConfigInteraction(interaction).catch((err) => console.error("[configCommand]", err));
+  }
   if (interaction.customId?.startsWith(`${BAN_ID}:`)) {
     return handleBanInteraction(interaction).catch((err) => console.error("[banPanel]", err));
   }
