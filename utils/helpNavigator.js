@@ -13,6 +13,7 @@ const {
 const { getPrefix } = require("./prefixStore");
 const { can } = require("./permissions/engine");
 const messageOwner = require("./messageOwner");
+const { accentColor, titreDe } = require("./customizePanel");
 
 // "-help" — même moteur d'aide navigable que le bot principal (menu
 // déroulant "Choisir une catégorie" + Précédent/Suivant si une catégorie ne
@@ -119,10 +120,10 @@ function buildHelpNavigator(guildId, member, state = {}) {
   const prefix = getPrefix(guildId);
   const tiers = buildTiers(member, prefix);
   const tierKey = state.tier && tiers.some((t) => t.key === state.tier) ? state.tier : "accueil";
-  const container = new ContainerBuilder();
+  const container = new ContainerBuilder().setAccentColor(accentColor(guildId));
 
   container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(`## 🔨 Modération — Aide\nVoici les commandes disponibles, filtrées selon tes permissions.`)
+    new TextDisplayBuilder().setContent(`## ${titreDe(guildId, "help")}\nVoici les commandes disponibles, filtrées selon tes permissions.`)
   );
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
 
