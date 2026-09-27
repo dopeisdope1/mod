@@ -73,7 +73,7 @@ async function handleBanAllMessage(message, args) {
   if (!text) {
     const current = banAllDmStore.getDmMessage(message.guild.id);
     return message.reply(
-      card(
+      card(message.guild.id, 
         "Message DM du ban de masse",
         current
           ? `Message actuel, envoyé à chacun avant d'être banni :\n\n${current}`
@@ -82,7 +82,7 @@ async function handleBanAllMessage(message, args) {
     );
   }
   banAllDmStore.setDmMessage(message.guild.id, text);
-  return message.reply(card("Message DM du ban de masse enregistré", text));
+  return message.reply(card(message.guild.id, "Message DM du ban de masse enregistré", text));
 }
 
 function buildConfirmCard(guild, targets, reason, token) {
@@ -97,7 +97,7 @@ function buildConfirmCard(guild, targets, reason, token) {
     ? ` + environ **${Math.max(1, Math.ceil((targets.length / DM_BATCH_SIZE) * 0.6))} seconde(s)** pour les DM avant le ban (lots de ${DM_BATCH_SIZE})`
     : "";
 
-  return card(
+  return card(guild.id, 
     "Confirmer le ban de masse",
     [
       `**${targets.length}** membre(s) seront bannis de **${guild.name}**.`,
@@ -175,13 +175,13 @@ async function handleBanAll(client, message, args) {
 
   const reason = args.join(" ").trim();
 
-  await message.reply(card("Ban de masse", "Analyse des membres du serveur en cours…"));
+  await message.reply(card(message.guild.id, "Ban de masse", "Analyse des membres du serveur en cours…"));
 
   await message.guild.members.fetch().catch(() => null);
   const targets = bannableMembers(message.guild, message.author.id);
 
   if (!targets.length) {
-    return message.channel.send(card("Ban de masse", "Aucun membre ne peut être banni."));
+    return message.channel.send(card(message.guild.id, "Ban de masse", "Aucun membre ne peut être banni."));
   }
 
   const token = rememberRequest({ actorId: message.author.id, reason, count: targets.length });
@@ -198,7 +198,7 @@ async function handleBanAllInteraction(interaction) {
 
   const request = pending.get(token);
   if (!request) {
-    return interaction.update(card("Panneau expiré", "Relance la commande pour recommencer."));
+    return interaction.update(card(interaction.guild.id, "Panneau expiré", "Relance la commande pour recommencer."));
   }
   if (interaction.user.id !== request.actorId) {
     return interaction.reply({ content: "Ce panneau n'est pas le tien.", flags: MessageFlags.Ephemeral });
@@ -206,7 +206,7 @@ async function handleBanAllInteraction(interaction) {
 
   if (action === "no") {
     pending.delete(token);
-    return interaction.update(card("Ban de masse annulé", null));
+    return interaction.update(card(interaction.guild.id, "Ban de masse annulé", null));
   }
 
   if (action === "configmsg") {
@@ -224,19 +224,19 @@ async function handleBanAllInteraction(interaction) {
 
   const dmMessage = banAllDmStore.getDmMessage(guild.id);
   if (dmMessage) {
-    await interaction.update(card("Ban de masse en cours", `Envoi des messages en DM… 0 / ${targets.length}`));
+    await interaction.update(card(guild.id, "Ban de masse en cours", `Envoi des messages en DM… 0 / ${targets.length}`));
     let sent = 0;
     await runBatched(targets, DM_BATCH_SIZE, async (member) => {
       await member.send(dmMessage).catch(() => {});
       sent += 1;
       if (sent % PROGRESS_EVERY === 0) {
         await interaction.message
-          .edit(card("Ban de masse en cours", `Envoi des messages en DM… ${sent} / ${targets.length}`))
+          .edit(card(guild.id, "Ban de masse en cours", `Envoi des messages en DM… ${sent} / ${targets.length}`))
           .catch(() => {});
       }
     });
   } else {
-    await interaction.update(card("Ban de masse en cours", `0 / ${targets.length}…`));
+    await interaction.update(card(guild.id, "Ban de masse en cours", `0 / ${targets.length}…`));
   }
 
   let done = 0;
@@ -255,7 +255,7 @@ async function handleBanAllInteraction(interaction) {
       }
       if (index < groups.length - 1) {
         await interaction.message
-          .edit(card("Ban de masse en cours", `${done} / ${targets.length}…`))
+          .edit(card(guild.id, "Ban de masse en cours", `${done} / ${targets.length}…`))
           .catch(() => {});
       }
     }
@@ -275,7 +275,7 @@ async function handleBanAllInteraction(interaction) {
 
       if ((done + failed) % PROGRESS_EVERY === 0) {
         await interaction.message
-          .edit(card("Ban de masse en cours", `${done} / ${targets.length}…`))
+          .edit(card(guild.id, "Ban de masse en cours", `${done} / ${targets.length}…`))
           .catch(() => {});
       }
     });
@@ -303,7 +303,7 @@ async function handleBanAllInteraction(interaction) {
 
   await interaction.message
     .edit(
-      card(
+      card(guild.id, 
         "Ban de masse terminé",
         `**${done}** membre(s) banni(s).${failed ? `\n${failed} échec(s).` : ""}`
       )

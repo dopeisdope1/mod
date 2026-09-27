@@ -13,6 +13,7 @@ const {
 } = require("discord.js");
 const { can } = require("./permissions/engine");
 const { botAndRankRefusal, checkHierarchy, checkBotPermission, report } = require("./moderation/actions");
+const { accentColor } = require("./customizePanel");
 
 const ID = "ban";
 
@@ -46,8 +47,8 @@ function refusalReason(guild, target) {
   return botAndRankRefusal(guild, target);
 }
 
-function card(title, body, rows = []) {
-  const container = new ContainerBuilder();
+function card(guildId, title, body, rows = []) {
+  const container = new ContainerBuilder().setAccentColor(accentColor(guildId));
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${title}`));
   if (body) {
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
@@ -83,7 +84,7 @@ function parseTarget(message, args) {
 async function bannir(client, { guild, acteur, target, reason, channelId, repondre }) {
   const refusal =
     checkBotPermission(guild, PermissionFlagsBits.BanMembers, "BanMembers") || checkHierarchy(guild, acteur.member, target);
-  if (refusal) return repondre(card("Bannissement impossible", refusal));
+  if (refusal) return repondre(card(guild.id, "Bannissement impossible", refusal));
 
   const tag = target.user.tag;
   try {
@@ -100,10 +101,10 @@ async function bannir(client, { guild, acteur, target, reason, channelId, repond
       reason,
       channelId,
     });
-    return repondre(card("Membre banni", `**${tag}** a été banni.${reason ? `\nRaison : ${reason}` : ""}`));
+    return repondre(card(guild.id, "Membre banni", `**${tag}** a été banni.${reason ? `\nRaison : ${reason}` : ""}`));
   } catch (err) {
     console.error("[ban] échec du bannissement :", err);
-    return repondre(card("Bannissement impossible", `Discord a refusé : ${err.message}`));
+    return repondre(card(guild.id, "Bannissement impossible", `Discord a refusé : ${err.message}`));
   }
 }
 
@@ -118,12 +119,12 @@ async function handleBan(client, message, args) {
   const { targetId, reason } = parseTarget(message, args);
 
   if (!targetId) {
-    return message.reply(card("Bannir un membre", "Indique la cible : `ban @membre|id [raison]`."));
+    return message.reply(card(message.guild.id, "Bannir un membre", "Indique la cible : `ban @membre|id [raison]`."));
   }
 
   const target = await message.guild.members.fetch(targetId).catch(() => null);
   if (!target) {
-    return message.reply(card("Membre introuvable", "Ce membre n'est pas sur le serveur."));
+    return message.reply(card(message.guild.id, "Membre introuvable", "Ce membre n'est pas sur le serveur."));
   }
 
   return bannir(client, {
@@ -143,7 +144,7 @@ async function handleUnban(client, message, args) {
   if (!can(message.member, "moderation.unban")) return;
 
   if (!message.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
-    return message.reply(card("Action impossible", "Il me manque la permission **Bannir des membres**."));
+    return message.reply(card(message.guild.id, "Action impossible", "Il me manque la permission **Bannir des membres**."));
   }
 
   const explicitId = args.join(" ").match(/\d{15,25}/)?.[0];
@@ -151,7 +152,7 @@ async function handleUnban(client, message, args) {
   if (explicitId) {
     const existing = await message.guild.bans.fetch(explicitId).catch(() => null);
     if (!existing) {
-      return message.reply(card("Introuvable", "Cet identifiant ne figure pas dans la liste des bannis."));
+      return message.reply(card(message.guild.id, "Introuvable", "Cet identifiant ne figure pas dans la liste des bannis."));
     }
     try {
       await message.guild.bans.remove(explicitId, `Débannissement par ${message.author.tag}`);
@@ -165,23 +166,23 @@ async function handleUnban(client, message, args) {
         moderator: message.author,
         channelId: message.channel.id,
       });
-      return message.reply(card("Membre débanni", `**${existing.user.tag}** peut de nouveau rejoindre le serveur.`));
+      return message.reply(card(message.guild.id, "Membre débanni", `**${existing.user.tag}** peut de nouveau rejoindre le serveur.`));
     } catch (err) {
       console.error("[unban] échec :", err);
-      return message.reply(card("Action impossible", `Discord a refusé : ${err.message}`));
+      return message.reply(card(message.guild.id, "Action impossible", `Discord a refusé : ${err.message}`));
     }
   }
 
   const bans = await message.guild.bans.fetch().catch(() => null);
   if (!bans || bans.size === 0) {
-    return message.reply(card("Aucun banni", "Personne n'est banni de ce serveur."));
+    return message.reply(card(message.guild.id, "Aucun banni", "Personne n'est banni de ce serveur."));
   }
 
   const shown = [...bans.values()].slice(0, 25);
   const extra = bans.size > shown.length ? `\n\n${bans.size - shown.length} autre(s) — utilise \`unban <id>\`.` : "";
 
   return message.reply(
-    card("Débannir un membre", `**${bans.size}** membre(s) banni(s).${extra}`, [
+    card(message.guild.id, "Débannir un membre", `**${bans.size}** membre(s) banni(s).${extra}`, [
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(`${ID}:un:${message.author.id}`)
@@ -224,11 +225,11 @@ async function handleBanInteraction(interaction) {
         channelId: interaction.channelId,
       });
       return interaction.update(
-        card("Membre débanni", `**${banned?.user.tag || userId}** peut de nouveau rejoindre le serveur.`)
+        card(interaction.guild.id, "Membre débanni", `**${banned?.user.tag || userId}** peut de nouveau rejoindre le serveur.`)
       );
     } catch (err) {
       console.error("[unban] échec :", err);
-      return interaction.update(card("Action impossible", `Discord a refusé : ${err.message}`));
+      return interaction.update(card(interaction.guild.id, "Action impossible", `Discord a refusé : ${err.message}`));
     }
   }
 
@@ -238,7 +239,7 @@ async function handleBanInteraction(interaction) {
 
   const request = pending.get(token);
   if (!request) {
-    return interaction.update(card("Panneau expiré", "Relance la commande pour recommencer."));
+    return interaction.update(card(interaction.guild.id, "Panneau expiré", "Relance la commande pour recommencer."));
   }
   if (interaction.user.id !== request.actorId) {
     return interaction.reply({ content: "Ce panneau n'est pas le tien.", flags: MessageFlags.Ephemeral });
@@ -246,17 +247,17 @@ async function handleBanInteraction(interaction) {
 
   if (action === "no") {
     pending.delete(token);
-    return interaction.update(card("Bannissement annulé", null));
+    return interaction.update(card(interaction.guild.id, "Bannissement annulé", null));
   }
 
   if (action === "go") {
     const target = await interaction.guild.members.fetch(request.targetId).catch(() => null);
-    if (!target) return interaction.update(card("Membre introuvable", "Ce membre n'est plus sur le serveur."));
+    if (!target) return interaction.update(card(interaction.guild.id, "Membre introuvable", "Ce membre n'est plus sur le serveur."));
 
     const refusal =
       checkBotPermission(interaction.guild, PermissionFlagsBits.BanMembers, "BanMembers") ||
       checkHierarchy(interaction.guild, interaction.member, target);
-    if (refusal) return interaction.update(card("Bannissement impossible", refusal));
+    if (refusal) return interaction.update(card(interaction.guild.id, "Bannissement impossible", refusal));
 
     pending.delete(token);
 
@@ -276,10 +277,10 @@ async function handleBanInteraction(interaction) {
         reason,
         channelId: interaction.channelId,
       });
-      return interaction.update(card("Membre banni", `**${tag}** a été banni.${reason ? `\nRaison : ${reason}` : ""}`));
+      return interaction.update(card(interaction.guild.id, "Membre banni", `**${tag}** a été banni.${reason ? `\nRaison : ${reason}` : ""}`));
     } catch (err) {
       console.error("[ban] échec du bannissement :", err);
-      return interaction.update(card("Bannissement impossible", `Discord a refusé : ${err.message}`));
+      return interaction.update(card(interaction.guild.id, "Bannissement impossible", `Discord a refusé : ${err.message}`));
     }
   }
 }

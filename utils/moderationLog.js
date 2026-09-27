@@ -2,6 +2,7 @@ const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacing
 const { getLogChannelId } = require("./modLogStore");
 const logStore = require("./logStore");
 const statsStore = require("./statsStore");
+const { accentColor } = require("./customizePanel");
 
 // Version réduite de discord-music-bot/utils/moderationLog.js : ce bot ne
 // gère qu'UNE catégorie de logs ("moderation"), donc ni relais d'audit-log
@@ -37,7 +38,7 @@ async function postModerationEntry(client, guildId, { title, fields, moderatorId
     reason ? { label: "Raison", value: reason } : null,
   ].filter(Boolean);
 
-  const container = new ContainerBuilder();
+  const container = new ContainerBuilder().setAccentColor(accentColor(guildId));
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`**${title}**`));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(

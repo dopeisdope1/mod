@@ -9,6 +9,7 @@ const {
   MessageFlags,
 } = require("discord.js");
 const messageOwner = require("./messageOwner");
+const { accentColor } = require("./customizePanel");
 
 // Composant générique pour toute commande "liste" (-banlist, -mutelist...) :
 // UN message, paginé avec Précédent/Suivant plutôt que tronqué en silence ou
@@ -49,7 +50,7 @@ function paginerLignes(lignes) {
 async function buildListNavigator(kind, guild, page = 0) {
   const fournisseur = PROVIDERS.get(kind);
   const { title, lines, vide, erreur, compteur, numerote } = await fournisseur(guild);
-  const container = new ContainerBuilder();
+  const container = new ContainerBuilder().setAccentColor(accentColor(guild.id));
 
   if (erreur) {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${title}\n${erreur}`));
