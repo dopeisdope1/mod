@@ -22,7 +22,6 @@ const banReasonsStore = require("./banReasonsStore");
 const zinkillerStore = require("./zinkillerStore");
 const altLinksStore = require("./altLinksStore");
 const messageOwner = require("./messageOwner");
-const { accentColor } = require("./customizePanel");
 
 // "-baninfo <@membre>" — carte "raisons" : choisir une raison PRÉDÉFINIE
 // (gérée par serveur, utils/banReasonsStore.js) ou personnalisée, une durée
@@ -70,7 +69,7 @@ function buildBanInfoCard(guild, target, etat) {
   const candidats = candidatsDoubleCompte(guild, target);
   const doubleCompteChoisi = etat.linkedToId ? `<@${etat.linkedToId}>` : "aucun";
 
-  const container = new ContainerBuilder().setAccentColor(accentColor(guild.id));
+  const container = new ContainerBuilder();
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Blacklist · raisons"));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(
@@ -187,7 +186,7 @@ async function handleBanInfoInteraction(interaction) {
 
   if (action === "no") {
     etats.delete(messageId);
-    const container = new ContainerBuilder().setAccentColor(accentColor(interaction.guild.id));
+    const container = new ContainerBuilder();
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Blacklist · raisons\n*Annulé.*"));
     return interaction.update({ flags: MessageFlags.IsComponentsV2, components: [container] });
   }
@@ -229,7 +228,7 @@ async function handleBanInfoInteraction(interaction) {
     });
 
     etats.delete(messageId);
-    const container = new ContainerBuilder().setAccentColor(accentColor(interaction.guild.id));
+    const container = new ContainerBuilder();
     container.addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
         `## Blacklist · raisons\n**${tag}** banni — ${duree.label}.\nRaison : ${etat.reasonLabel}${etat.linkedToId ? `\nDouble compte de : <@${etat.linkedToId}>` : ""}`
