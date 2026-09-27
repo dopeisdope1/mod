@@ -20,12 +20,29 @@ function parseTarget(args) {
   return mention?.[1] || id?.[0] || null;
 }
 
-/** "-zinkiller <@membre|id> [raison]" — bannit et rend le bannissement persistant. */
+const GRADES = { 1: "Mineur", 2: "Modéré", 3: "Grave", 4: "Sévère", 5: "Critique" };
+
+/** Extrait "preuve:<lien/texte>" et "grade:<1-5>" du reste des args, où qu'ils soient — le reste forme la raison. */
+function parseEnrichissement(reste) {
+  let preuve = null;
+  let grade = null;
+  const mots = [];
+  for (const mot of reste) {
+    const mPreuve = mot.match(/^preuve:(.+)$/i);
+    const mGrade = mot.match(/^grade:([1-5])$/i);
+    if (mPreuve) preuve = mPreuve[1];
+    else if (mGrade) grade = Number(mGrade[1]);
+    else mots.push(mot);
+  }
+  return { preuve, grade, reason: mots.join(" ") || null };
+}
+
+/** "-zinkiller <@membre|id> [preuve:<lien>] [grade:1-5] [raison]" — bannit et rend le bannissement persistant. */
 async function zinkiller(client, message, args) {
   if (!can(message.member, PERMISSION)) return;
 
   const targetId = parseTarget(args);
-  if (!targetId) return reply(message, "error", "Indique un membre (mention ou identifiant) : `zinkiller @membre|id [raison]`.");
+  if (!targetId) return reply(message, "error", "Indique un membre (mention ou identifiant) : `zinkiller @membre|id [preuve:<lien>] [grade:1-5] [raison]`.");
   if (targetId === message.author.id) return reply(message, "error", "Tu ne peux pas agir sur toi-même.");
 
   const botPerm = checkBotPermission(message.guild, PermissionFlagsBits.BanMembers, "BanMembers");
@@ -37,7 +54,7 @@ async function zinkiller(client, message, args) {
     if (refusal) return reply(message, "error", refusal);
   }
 
-  const reason = args.slice(1).join(" ") || null;
+  const { preuve, grade, reason } = parseEnrichissement(args.slice(1));
   const targetTag = targetMember?.user.tag || targetId;
 
   try {
@@ -46,12 +63,16 @@ async function zinkiller(client, message, args) {
     return reply(message, "error", `Discord a refusé : ${err.message}`);
   }
 
-  zinkillerStore.add(message.guild.id, targetId, { reason, moderatorId: message.author.id });
+  zinkillerStore.add(message.guild.id, targetId, { reason, moderatorId: message.author.id, preuve, grade });
 
   await report(client, {
     guildId: message.guild.id,
     title: "Zinkiller",
-    fields: [{ label: "Cible", value: `<@${targetId}> (${targetId})` }],
+    fields: [
+      { label: "Cible", value: `<@${targetId}> (${targetId})` },
+      ...(grade ? [{ label: "Grade", value: `${grade} — ${GRADES[grade]}` }] : []),
+      ...(preuve ? [{ label: "Preuve", value: preuve }] : []),
+    ],
     action: "zinkiller",
     targetId,
     targetTag,
@@ -111,7 +132,16 @@ listNavigator.registerProvider("zinkillerlist", (guild) => {
     title: "Bans persistants",
     vide: "Aucun ban persistant actif sur ce serveur.",
     numerote: true,
-    lines: entries.map((e) => `<@${e.userId}> (${e.userId}) — par <@${e.moderatorId}>${e.reason ? ` — ${e.reason}` : ""}`),
+    lines: entries.map((e) =>
+      [
+        `<@${e.userId}> (${e.userId}) — par <@${e.moderatorId}>`,
+        e.grade ? `grade ${e.grade} (${GRADES[e.grade]})` : null,
+        e.reason ? `raison : ${e.reason}` : null,
+        e.preuve ? `preuve : ${e.preuve}` : null,
+      ]
+        .filter(Boolean)
+        .join(" — ")
+    ),
   };
 });
 

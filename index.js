@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, MessageFlags } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, MessageFlags } = require("discord.js");
 const statsStore = require("./utils/statsStore");
 const { getPrefix, setPrefix } = require("./utils/prefixStore");
 const { ADMIN_COMMANDS } = require("./utils/adminCommands");
@@ -19,6 +19,7 @@ const commandRules = require("./utils/commandRules");
 const accessStore = require("./utils/accessStore");
 const { config, handleConfigInteraction, CUSTOM_ID: CONFIG_ID } = require("./utils/configCommand");
 const { handleEmojiTextCommand, handleEmojiInteraction, CUSTOM_ID: EMOJI_ID } = require("./utils/emojiPanel");
+const { demanderClearMyBL, handleClearMyBLInteraction, CUSTOM_ID: CLEARMYBL_ID } = require("./utils/clearMyBlCommands");
 
 // Liste FIXE — construite une seule fois au chargement, jamais recréée à
 // chaque clic (même principe que discord-music-bot/index.js et
@@ -41,7 +42,11 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
   ],
+  // Nécessaire : les DM ne sont jamais mis en cache par défaut, donc
+  // messageCreate ne se déclencherait pas pour "clearmybl" en privé sans ça.
+  partials: [Partials.Channel],
   // Aucun ping par défaut, nulle part — mêmes réglages que les 3 autres bots.
   allowedMentions: { parse: [], repliedUser: false },
 });
@@ -59,7 +64,13 @@ function parseFirstTarget(args) {
 
 // ---- Commandes texte préfixées ----
 client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.guild) return;
+  if (message.author.bot) return;
+  if (!message.guild) {
+    if (message.content.trim().toLowerCase() === "clearmybl") {
+      return demanderClearMyBL(client, message).catch((err) => console.error("[clearMyBlCommands]", err));
+    }
+    return;
+  }
   statsStore.record(message.guild.id, "messages");
 
   const content = message.content.trim();
@@ -161,6 +172,9 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.customId?.startsWith(`${EMOJI_ID}:`)) {
     return handleEmojiInteraction(interaction).catch((err) => console.error("[emojiPanel]", err));
   }
+  if (interaction.customId?.startsWith(`${CLEARMYBL_ID}:`)) {
+    return handleClearMyBLInteraction(interaction).catch((err) => console.error("[clearMyBlCommands]", err));
+  }
 });
 
 // ---- Ban persistant (-zinkiller) : re-bannit si débanni ailleurs que par -unzinkiller ----
@@ -220,7 +234,7 @@ const PANEL_COMMANDS = [
   { name: "unban", category: "Moderation", description: "Debannit un membre." },
   { name: "banall", category: "Moderation", description: "Bannit plusieurs membres a la fois." },
   { name: "unbanall", category: "Moderation", description: "Debannit tous les membres bannis." },
-  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs)." },
+  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs), avec preuve:<lien> et grade:1-5 optionnels." },
   { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
   { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
   { name: "kick", category: "Moderation", description: "Expulse un membre du serveur." },

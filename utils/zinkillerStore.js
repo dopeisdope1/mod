@@ -42,9 +42,15 @@ function isZinkilled(guildId, userId) {
   return Boolean(guildEntry(guildId)[userId]);
 }
 
-/** @param {{ reason?: string, moderatorId: string }} info */
+/** @param {{ reason?: string, moderatorId: string, preuve?: string, grade?: number }} info */
 function add(guildId, userId, info) {
-  guildEntry(guildId)[userId] = { reason: info.reason || null, moderatorId: info.moderatorId, at: Date.now() };
+  guildEntry(guildId)[userId] = {
+    reason: info.reason || null,
+    moderatorId: info.moderatorId,
+    preuve: info.preuve || null,
+    grade: info.grade || null,
+    at: Date.now(),
+  };
   save();
 }
 
@@ -59,11 +65,15 @@ function remove(guildId, userId) {
   return removed;
 }
 
-/** @returns {{ userId: string, reason: string|null, moderatorId: string, at: number }[]} */
+/** @returns {{ userId: string, reason: string|null, moderatorId: string, preuve: string|null, grade: number|null, at: number }[]} */
 function list(guildId) {
   return Object.entries(guildEntry(guildId))
     .filter(([key]) => key !== "__config")
     .map(([userId, info]) => ({ userId, ...info }));
+}
+
+function get(guildId, userId) {
+  return guildEntry(guildId)[userId] || null;
 }
 
 function getConfig(guildId) {
@@ -79,4 +89,4 @@ function setEnabled(guildId, enabled) {
   save();
 }
 
-module.exports = { isZinkilled, add, remove, list, getConfig, setEnabled };
+module.exports = { isZinkilled, add, remove, list, get, getConfig, setEnabled };
