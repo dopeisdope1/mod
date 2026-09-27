@@ -18,6 +18,7 @@ const commandsStore = require("./utils/commandsStore");
 const commandRules = require("./utils/commandRules");
 const accessStore = require("./utils/accessStore");
 const { config, handleConfigInteraction, CUSTOM_ID: CONFIG_ID } = require("./utils/configCommand");
+const { handleEmojiTextCommand, handleEmojiInteraction, CUSTOM_ID: EMOJI_ID } = require("./utils/emojiPanel");
 
 // Liste FIXE — construite une seule fois au chargement, jamais recréée à
 // chaque clic (même principe que discord-music-bot/index.js et
@@ -30,6 +31,7 @@ const PANNEAUX_PRIVES = [
   `${HELP_CUSTOM_ID}:`,
   `${listNavigator.CUSTOM_ID}:`,
   `${CONFIG_ID}:`,
+  `${EMOJI_ID}:`,
 ];
 
 const client = new Client({
@@ -82,6 +84,7 @@ client.on("messageCreate", async (message) => {
   try {
     if (mot === "help") return await help(client, message);
     if (mot === "panel") return await config(client, message);
+    if (mot === "emoji") return await handleEmojiTextCommand(client, message, args);
     if (mot === "ban") return await handleBan(client, message, args);
     if (mot === "unban") return await handleUnban(client, message, args);
     if (mot === "banall") return await handleBanAll(client, message, args);
@@ -155,6 +158,9 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.customId?.startsWith(`${listNavigator.CUSTOM_ID}:`)) {
     return listNavigator.handleListNavInteraction(interaction).catch((err) => console.error("[listNavigator]", err));
   }
+  if (interaction.customId?.startsWith(`${EMOJI_ID}:`)) {
+    return handleEmojiInteraction(interaction).catch((err) => console.error("[emojiPanel]", err));
+  }
 });
 
 // ---- Ban persistant (-zinkiller) : re-bannit si débanni ailleurs que par -unzinkiller ----
@@ -204,6 +210,7 @@ process.on("uncaughtException", (err) => {
 
 const PANEL_COMMANDS = [
   { name: "prefix", category: "Admin", description: "Change le prefixe des commandes du bot." },
+  { name: "emoji", category: "Admin", description: "Personnalise les emojis affiches par le bot, par serveur." },
   { name: "rename", category: "Admin", description: "Renomme le bot sur ce serveur." },
   { name: "owner", category: "Admin", description: "Gere le proprietaire du bot." },
   { name: "setrole", category: "Admin", description: "Definit un role requis pour une fonction." },

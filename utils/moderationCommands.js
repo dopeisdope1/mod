@@ -15,7 +15,7 @@ const historyStore = require("./moderationHistoryStore");
 // et partagé avec des features hors périmètre (niveaux, tickets, grades) —
 // décision actée de ne pas le dupliquer ici.
 
-const reply = (message, kind, text) => message.reply({ embeds: [buildStatusEmbed(kind, text, { guildId: message.guild.id })] });
+const reply = (message, kind, text) => message.reply(buildStatusEmbed(kind, text, { guildId: message.guild.id }));
 
 /** Traduction des durées "-timeout @membre 10m" -> millisecondes. Plafond Discord : 28 jours. */
 const DURATION_UNITS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
@@ -229,7 +229,7 @@ const handlers = {
       return `\`${e.action}\` ${e.targetTag ? `**${e.targetTag}**` : ""} — par ${e.moderatorTag || e.moderatorId} — ${when}${e.reason ? ` — ${e.reason}` : ""}`;
     });
     const titre = `Historique de modération${targetId ? " — membre ciblé" : ""}`;
-    return message.reply({ embeds: [buildStatusEmbed("info", lines.join("\n"), { title: titre, guildId: message.guild.id })] });
+    return message.reply(buildStatusEmbed("info", lines.join("\n"), { title: titre, guildId: message.guild.id }));
   },
 };
 
@@ -295,7 +295,7 @@ async function clear(client, message, args) {
 
   await message.delete().catch(() => {});
   const confirmation = await message.channel
-    .send({ embeds: [buildStatusEmbed("success", `**${deleted}** message(s) supprimé(s).`, { guildId: message.guild.id })] })
+    .send(buildStatusEmbed("success", `**${deleted}** message(s) supprimé(s).`, { guildId: message.guild.id }))
     .catch(() => null);
   if (confirmation) confirmation.delete().catch(() => {});
 }

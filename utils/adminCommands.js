@@ -6,7 +6,7 @@ const permCatalog = require("./permissions/catalog");
 const accessStore = require("./accessStore");
 const { getPrefix, setPrefix } = require("./prefixStore");
 
-const reply = (message, kind, text) => message.reply({ embeds: [buildStatusEmbed(kind, text)] });
+const reply = (message, kind, text) => message.reply(buildStatusEmbed(kind, text, { guildId: message.guild.id }));
 
 /** "prefix <nouveau>" — réservé au rang sys, comme sur les autres bots. */
 async function prefix(client, message, args) {

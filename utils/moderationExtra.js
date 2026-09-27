@@ -8,7 +8,7 @@ const muteStore = require("./muteStore");
 const tempBanStore = require("./tempBanStore");
 const listNavigator = require("./listNavigator");
 
-const reply = (message, kind, text) => message.reply({ embeds: [buildStatusEmbed(kind, text, { guildId: message.guild.id })] });
+const reply = (message, kind, text) => message.reply(buildStatusEmbed(kind, text, { guildId: message.guild.id }));
 
 /** Cible = PREMIER argument exactement (mention ou ID) — jamais "une mention trouvée n'importe où". */
 function parseTarget(args) {

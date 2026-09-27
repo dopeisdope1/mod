@@ -12,7 +12,7 @@ const listNavigator = require("./listNavigator");
 // restent un bannissement Discord ordinaire, sans ce filet.
 const PERMISSION = "moderation.zinkiller";
 
-const reply = (message, kind, text) => message.reply({ embeds: [buildStatusEmbed(kind, text, { guildId: message.guild.id })] });
+const reply = (message, kind, text) => message.reply(buildStatusEmbed(kind, text, { guildId: message.guild.id }));
 
 function parseTarget(args) {
   const mention = args[0]?.match(/^<@!?(\d{15,25})>$/);
