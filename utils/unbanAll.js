@@ -1,6 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, PermissionFlagsBits, MessageFlags } = require("discord.js");
 const { can } = require("./permissions/engine");
 const { checkBotPermission, report } = require("./moderation/actions");
+const { applyAccent } = require("./customizePanel");
 
 // "-unbanall" (confirmation obligatoire, comme -banall) — porté depuis
 // utils/serverExtra.js du bot principal, MAIS sans dépendre de son système
@@ -22,8 +23,8 @@ function rememberRequest(data) {
   return token;
 }
 
-function card(title, body, rows = []) {
-  const container = new ContainerBuilder();
+function card(guildId, title, body, rows = []) {
+  const container = applyAccent(new ContainerBuilder(), guildId);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${title}`));
   if (body) {
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
@@ -39,15 +40,15 @@ function card(title, body, rows = []) {
 async function unbanall(client, message) {
   if (!can(message.member, "moderation.unbanall")) return;
   const botPerm = checkBotPermission(message.guild, PermissionFlagsBits.BanMembers, "BanMembers");
-  if (botPerm) return message.reply(card("Action impossible", botPerm));
+  if (botPerm) return message.reply(card(message.guild.id, "Action impossible", botPerm));
 
   const bans = await message.guild.bans.fetch().catch(() => null);
-  if (!bans || !bans.size) return message.reply(card("Débannissement de masse", "Personne n'est banni."));
+  if (!bans || !bans.size) return message.reply(card(message.guild.id, "Débannissement de masse", "Personne n'est banni."));
 
   const token = rememberRequest({ actorId: message.author.id, count: bans.size });
 
   return message.reply(
-    card(
+    card(message.guild.id, 
       "Confirmer le débannissement de masse",
       `**${bans.size}** membre(s) actuellement banni(s) seront débannis. Cette action ne peut pas être annulée automatiquement.`,
       [
@@ -69,7 +70,7 @@ async function handleUnbanAllInteraction(interaction) {
 
   const request = pending.get(token);
   if (!request) {
-    return interaction.update(card("Panneau expiré", "Relance la commande pour recommencer."));
+    return interaction.update(card(interaction.guild.id, "Panneau expiré", "Relance la commande pour recommencer."));
   }
   if (interaction.user.id !== request.actorId) {
     return interaction.reply({ content: "Ce panneau n'est pas le tien.", flags: MessageFlags.Ephemeral });
@@ -77,13 +78,13 @@ async function handleUnbanAllInteraction(interaction) {
 
   if (action === "no") {
     pending.delete(token);
-    return interaction.update(card("Débannissement de masse annulé", null));
+    return interaction.update(card(interaction.guild.id, "Débannissement de masse annulé", null));
   }
 
   if (action !== "go") return;
   pending.delete(token);
 
-  await interaction.update(card("Débannissement de masse en cours", "…"));
+  await interaction.update(card(interaction.guild.id, "Débannissement de masse en cours", "…"));
 
   const currentBans = await interaction.guild.bans.fetch().catch(() => null);
   let count = 0;
@@ -104,7 +105,7 @@ async function handleUnbanAllInteraction(interaction) {
     extra: { count },
   });
 
-  await interaction.message.edit(card("Terminé", `**${count}** membre(s) débanni(s).`)).catch(() => {});
+  await interaction.message.edit(card(interaction.guild.id, "Terminé", `**${count}** membre(s) débanni(s).`)).catch(() => {});
 }
 
 module.exports = { unbanall, handleUnbanAllInteraction, ID };

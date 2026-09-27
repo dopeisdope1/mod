@@ -211,7 +211,6 @@ process.on("uncaughtException", (err) => {
 const PANEL_COMMANDS = [
   { name: "prefix", category: "Admin", description: "Change le prefixe des commandes du bot." },
   { name: "emoji", category: "Admin", description: "Personnalise les emojis affiches par le bot, par serveur." },
-  { name: "titre", category: "Admin", description: "Personnalise le titre de -help/-panel." },
   { name: "rename", category: "Admin", description: "Renomme le bot sur ce serveur." },
   { name: "owner", category: "Admin", description: "Gere le proprietaire du bot." },
   { name: "setrole", category: "Admin", description: "Definit un role requis pour une fonction." },

@@ -25,12 +25,41 @@ const permCatalog = require("./permissions/catalog");
 const commandsStore = require("./commandsStore");
 const commandRules = require("./commandRules");
 const { getPrefix, setPrefix } = require("./prefixStore");
-const { titreDe } = require("./customizePanel");
+const { TITRES, accentColor, setAccentColor, resetAccentColor, applyAccent, titreDe, setTitre, resetTitre } = require("./customizePanel");
 const { iconDe } = require("./emojiSlots");
+const { MESSAGES, CATEGORIES: MESSAGE_CATEGORIES, texteDe, setMessage, resetMessage } = require("./messages");
 const modLogStore = require("./modLogStore");
 const { ADMIN_COMMANDS } = require("./adminCommands");
 const { moderationHandlers } = require("./moderationCommands");
 const moderationExtra = require("./moderationExtra");
+
+// "-panel > Textes" couvre à la fois les titres (utils/customizePanel.js)
+// et les messages du bot (utils/messages.js) — présentés ensemble sous une
+// même catégorie "Titres" pour ne pas dupliquer l'UI.
+const TEXT_CATEGORIES = ["Titres", ...MESSAGE_CATEGORIES];
+
+function textItemsFor(categorie) {
+  if (categorie === "Titres") return Object.entries(TITRES).map(([key, t]) => ({ key, label: t.label, commande: t.commande }));
+  return Object.entries(MESSAGES)
+    .filter(([, def]) => def.categorie === categorie)
+    .map(([key, def]) => ({ key, label: def.label, commande: def.commande }));
+}
+
+function textLabelFor(categorie, key) {
+  return textItemsFor(categorie).find((i) => i.key === key)?.label || key;
+}
+
+function textValueFor(guildId, categorie, key) {
+  return categorie === "Titres" ? titreDe(guildId, key) : texteDe(guildId, key);
+}
+
+function textSetFor(guildId, categorie, key, val) {
+  return categorie === "Titres" ? setTitre(guildId, key, val) : setMessage(guildId, key, val);
+}
+
+function textResetFor(guildId, categorie, key) {
+  return categorie === "Titres" ? resetTitre(guildId, key) : resetMessage(guildId, key);
+}
 
 // Centre de configuration de moderation-bot — "&panel" (bot séparé de
 // discord-music-bot, même préfixe par défaut mais processus/token distincts,
@@ -75,6 +104,8 @@ const SECTIONS = [
     permission: "panel.permissions.manage",
   },
   { key: "sys", label: "Rang sys", description: "Qui a accès à tout le bot", ownerOnly: true },
+  { key: "appearance", label: "Apparence", description: "Couleur d'accent des cartes du bot", permission: "sys" },
+  { key: "texts", label: "Textes", description: "Titres et messages du bot", permission: "sys" },
 ];
 
 function sectionVisible(section, member, isOwner) {
@@ -154,6 +185,19 @@ function sectionBody(section, guild, member, state) {
     ].join("\n");
   }
 
+  if (section === "appearance") {
+    const c = accentColor(guildId);
+    return c === null
+      ? "> **Bordure** : désactivée — cartes sans couleur (par défaut)."
+      : `> **Bordure** : activée — \`#${c.toString(16).padStart(6, "0")}\``;
+  }
+
+  if (section === "texts") {
+    if (!state.textsCategorie) return "> Choisis une catégorie ci-dessous, puis le texte à voir/modifier.";
+    if (!state.textsSelected) return `> **${state.textsCategorie}** — choisis un texte ci-dessous.`;
+    return `> **${textLabelFor(state.textsCategorie, state.textsSelected)}** :\n${textValueFor(guildId, state.textsCategorie, state.textsSelected)}`;
+  }
+
   if (section === "sys") {
     const owners = accessStore.ownerIds();
     const sys = accessStore.list("sys");
@@ -171,7 +215,7 @@ function buildPanel(guild, current = "home", member, state = {}) {
   const available = sectionsFor(member, isOwner);
   const meta = available.find((s) => s.key === current) || available[0];
 
-  const container = new ContainerBuilder();
+  const container = applyAccent(new ContainerBuilder(), guild.id);
   const entete = [`## ${titreDe(guild.id, "panel")}`, `> <@${member.id}> · Préfixe : \`${getPrefix(guild.id)}\``];
   if (meta.key !== "home") entete.push(`### ${meta.label}`);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(entete.join("\n")));
@@ -288,6 +332,61 @@ function buildPanel(guild, current = "home", member, state = {}) {
       } else if (aspect === "denyChannel") {
         container.addActionRowComponents(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`${ID}:cmddenychannel:${cmdName}`).setPlaceholder("Ajouter/retirer un salon interdit")));
       }
+    }
+  } else if (meta.key === "appearance") {
+    const bordureActive = accentColor(guild.id) !== null;
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${ID}:colorbtn`)
+          .setLabel(bordureActive ? "Changer la couleur" : "Activer une bordure colorée")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(`${ID}:colorreset`)
+          .setLabel("Désactiver la bordure")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(!bordureActive)
+      )
+    );
+  } else if (meta.key === "texts") {
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${ID}:textcat`)
+          .setPlaceholder("Choisir une catégorie")
+          .addOptions(
+            TEXT_CATEGORIES.map((cat) => new StringSelectMenuOptionBuilder().setLabel(cat).setValue(cat).setDefault(cat === state.textsCategorie))
+          )
+      )
+    );
+    if (state.textsCategorie) {
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`${ID}:textselect:${state.textsCategorie}`)
+            .setPlaceholder("Choisir un texte")
+            .addOptions(
+              textItemsFor(state.textsCategorie)
+                .slice(0, 25)
+                .map((i) => {
+                  const apercu = textValueFor(guild.id, state.textsCategorie, i.key);
+                  return new StringSelectMenuOptionBuilder()
+                    .setLabel(i.label.slice(0, 100))
+                    .setDescription(`${i.commande} — ${apercu}`.slice(0, 100))
+                    .setValue(i.key)
+                    .setDefault(i.key === state.textsSelected);
+                })
+            )
+        )
+      );
+    }
+    if (state.textsCategorie && state.textsSelected) {
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`${ID}:textbtn:${state.textsCategorie}:${state.textsSelected}`).setLabel("Modifier").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId(`${ID}:textreset:${state.textsCategorie}:${state.textsSelected}`).setLabel("Réinitialiser").setStyle(ButtonStyle.Secondary)
+        )
+      );
     }
   } else if (meta.key === "sys") {
     container.addActionRowComponents(
@@ -445,6 +544,74 @@ async function handleConfigInteraction(interaction) {
     if (!can(member, "panel.permissions.manage")) return denied();
     commandRules.toggleDeniedChannel(guild.id, extra, interaction.values[0]);
     return goto("commands", { commandsSelected: extra, commandsAspect: "denyChannel" });
+  }
+
+  if (action === "colorbtn") {
+    if (!can(member, "sys")) return interaction.reply({ content: "Réservé au rang sys.", flags: MessageFlags.Ephemeral });
+    if (interaction.isModalSubmit()) {
+      const saisi = interaction.fields.getTextInputValue("value").trim();
+      const hex = setAccentColor(guild.id, saisi);
+      if (!hex) return interaction.reply({ content: "Couleur invalide — attendu : `#RRGGBB` (ex. `#ff4d4d`).", flags: MessageFlags.Ephemeral });
+      return goto("appearance", {});
+    }
+    const modal = new ModalBuilder()
+      .setCustomId(`${ID}:colorbtn`)
+      .setTitle("Couleur d'accent")
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("value").setLabel("Couleur (#RRGGBB)").setPlaceholder("#5865f2").setStyle(TextInputStyle.Short).setMaxLength(7).setRequired(true)
+        )
+      );
+    return interaction.showModal(modal);
+  }
+
+  if (action === "colorreset") {
+    if (!can(member, "sys")) return interaction.reply({ content: "Réservé au rang sys.", flags: MessageFlags.Ephemeral });
+    resetAccentColor(guild.id);
+    return goto("appearance", {});
+  }
+
+  if (action === "textcat") {
+    return goto("texts", { textsCategorie: interaction.values[0] });
+  }
+
+  if (action === "textselect") {
+    const categorie = extra;
+    return goto("texts", { textsCategorie: categorie, textsSelected: interaction.values[0] });
+  }
+
+  if (action === "textbtn") {
+    if (!can(member, "sys")) return interaction.reply({ content: "Réservé au rang sys.", flags: MessageFlags.Ephemeral });
+    const [categorie, key] = interaction.customId.split(":").slice(2);
+    if (interaction.isModalSubmit()) {
+      const saisi = interaction.fields.getTextInputValue("value").trim();
+      if (!saisi) return interaction.reply({ content: "Texte vide.", flags: MessageFlags.Ephemeral });
+      if (saisi.length > 300) return interaction.reply({ content: "300 caractères maximum.", flags: MessageFlags.Ephemeral });
+      textSetFor(guild.id, categorie, key, saisi);
+      return goto("texts", { textsCategorie: categorie, textsSelected: key });
+    }
+    const modal = new ModalBuilder()
+      .setCustomId(`${ID}:textbtn:${categorie}:${key}`)
+      .setTitle(textLabelFor(categorie, key).slice(0, 45) || "Texte")
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("value")
+            .setLabel("Nouveau texte (300 caractères max)")
+            .setStyle(TextInputStyle.Paragraph)
+            .setMaxLength(300)
+            .setRequired(true)
+            .setValue(textValueFor(guild.id, categorie, key).slice(0, 300))
+        )
+      );
+    return interaction.showModal(modal);
+  }
+
+  if (action === "textreset") {
+    if (!can(member, "sys")) return interaction.reply({ content: "Réservé au rang sys.", flags: MessageFlags.Ephemeral });
+    const [categorie, key] = interaction.customId.split(":").slice(2);
+    textResetFor(guild.id, categorie, key);
+    return goto("texts", { textsCategorie: categorie, textsSelected: key });
   }
 
   if (action === "sysadd") {

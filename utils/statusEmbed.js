@@ -1,6 +1,7 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } = require("discord.js");
 const { EMOJI } = require("./emojis");
 const { iconDe } = require("./emojiSlots");
+const { applyAccent } = require("./customizePanel");
 
 // Repli utilisé quand `options.guildId` est absent — ne jamais supprimer :
 // garde les appelants non migrés strictement inchangés.
@@ -24,7 +25,7 @@ const CLE_ICONE_PAR_TYPE = { success: "SUCCESS", error: "ERROR", info: "INFO", w
  */
 function buildStatusEmbed(type, description, options = {}) {
   const emoji = options.guildId ? iconDe(options.guildId, CLE_ICONE_PAR_TYPE[type]) : TYPE_EMOJI[type];
-  const container = new ContainerBuilder();
+  const container = applyAccent(new ContainerBuilder(), options.guildId);
   if (options.title) {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${options.title}`));
     if (description) container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));

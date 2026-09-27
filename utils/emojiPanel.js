@@ -17,6 +17,7 @@ const { can } = require("./permissions/engine");
 const { SLOTS, emojiDe } = require("./emojiSlots");
 const categoryEmojiStore = require("./categoryEmojiStore");
 const messageOwner = require("./messageOwner");
+const { applyAccent } = require("./customizePanel");
 
 // "-emoji" — personnalise chaque icône du registre de design (utils/
 // emojis.js) PAR SERVEUR. Même mécanique que discord-music-bot/utils/
@@ -41,7 +42,7 @@ function emojiValide(texte, guild) {
 }
 
 function buildEmojiPanel(guildId, slotKey) {
-  const container = new ContainerBuilder();
+  const container = applyAccent(new ContainerBuilder(), guildId);
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent("## Emoji\nChoisis l'icône dont tu veux changer l'emoji.")
   );
@@ -80,7 +81,7 @@ function buildEmojiPanel(guildId, slotKey) {
 
 function buildEmojiListCard(guildId) {
   const overrides = categoryEmojiStore.list(guildId);
-  const container = new ContainerBuilder();
+  const container = applyAccent(new ContainerBuilder(), guildId);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Emojis personnalisés"));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   const lignes = SLOTS.filter((s) => overrides[s.key]).map((s) => `${overrides[s.key]} **${s.label}** *(défaut : ${s.defaultEmoji})*`);
