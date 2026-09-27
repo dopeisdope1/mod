@@ -5,7 +5,7 @@ const permStore = require("./permissions/store");
 const permCatalog = require("./permissions/catalog");
 const accessStore = require("./accessStore");
 const { getPrefix, setPrefix } = require("./prefixStore");
-const { couleur, titre } = require("./customizePanel");
+const { titre } = require("./customizePanel");
 
 const reply = (message, kind, text) => message.reply(buildStatusEmbed(kind, text, { guildId: message.guild.id }));
 
@@ -104,6 +104,6 @@ async function sysdel(client, message, args) {
   return reply(message, removed ? "success" : "info", removed ? `<@${targetId}> a perdu le rang sys.` : "Ce membre n'a pas le rang sys.");
 }
 
-const ADMIN_COMMANDS = { prefix, rename, owner, setrole, sysadd, sysdel, couleur, titre };
+const ADMIN_COMMANDS = { prefix, rename, owner, setrole, sysadd, sysdel, titre };
 
 module.exports = { ADMIN_COMMANDS };

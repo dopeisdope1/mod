@@ -13,7 +13,7 @@ const {
 const { getPrefix } = require("./prefixStore");
 const { can } = require("./permissions/engine");
 const messageOwner = require("./messageOwner");
-const { accentColor, titreDe } = require("./customizePanel");
+const { titreDe } = require("./customizePanel");
 const { categoryEmojiDe } = require("./emojiSlots");
 const { CATEGORIES } = require("./helpCategories");
 
@@ -58,7 +58,7 @@ function buildHelpNavigator(guildId, member, state = {}) {
   const prefix = getPrefix(guildId);
   const tiers = buildTiers(guildId, member, prefix);
   const tierKey = state.tier && tiers.some((t) => t.key === state.tier) ? state.tier : "accueil";
-  const container = new ContainerBuilder().setAccentColor(accentColor(guildId));
+  const container = new ContainerBuilder();
 
   container.addTextDisplayComponents(
     new TextDisplayBuilder().setContent(`## ${titreDe(guildId, "help")}\nVoici les commandes disponibles, filtrées selon tes permissions.`)

@@ -25,7 +25,7 @@ const permCatalog = require("./permissions/catalog");
 const commandsStore = require("./commandsStore");
 const commandRules = require("./commandRules");
 const { getPrefix, setPrefix } = require("./prefixStore");
-const { accentColor, titreDe } = require("./customizePanel");
+const { titreDe } = require("./customizePanel");
 const { iconDe } = require("./emojiSlots");
 const modLogStore = require("./modLogStore");
 const { ADMIN_COMMANDS } = require("./adminCommands");
@@ -171,7 +171,7 @@ function buildPanel(guild, current = "home", member, state = {}) {
   const available = sectionsFor(member, isOwner);
   const meta = available.find((s) => s.key === current) || available[0];
 
-  const container = new ContainerBuilder().setAccentColor(accentColor(guild.id));
+  const container = new ContainerBuilder();
   const entete = [`## ${titreDe(guild.id, "panel")}`, `> <@${member.id}> · Préfixe : \`${getPrefix(guild.id)}\``];
   if (meta.key !== "home") entete.push(`### ${meta.label}`);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(entete.join("\n")));
