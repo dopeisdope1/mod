@@ -26,6 +26,7 @@ const commandsStore = require("./commandsStore");
 const commandRules = require("./commandRules");
 const { getPrefix, setPrefix } = require("./prefixStore");
 const { accentColor, titreDe } = require("./customizePanel");
+const { iconDe } = require("./emojiSlots");
 const modLogStore = require("./modLogStore");
 const { ADMIN_COMMANDS } = require("./adminCommands");
 const { moderationHandlers } = require("./moderationCommands");
@@ -128,7 +129,7 @@ function sectionBody(section, guild, member, state) {
     }
     const role = guild.roles.cache.get(roleId);
     const granted = permStore.getRoleGrants(guildId, roleId);
-    const lignes = permCatalog.CATALOG.map((p) => `${granted.includes(p.key) ? "✅" : "❌"} \`${p.key}\` — ${p.label}`);
+    const lignes = permCatalog.CATALOG.map((p) => `${granted.includes(p.key) ? iconDe(guildId, "SUCCESS") : iconDe(guildId, "ERROR")} \`${p.key}\` — ${p.label}`);
     return [`> **Rôle** : ${role.name}`, ...lignes].join("\n");
   }
 
@@ -228,7 +229,11 @@ function buildPanel(guild, current = "home", member, state = {}) {
             .setPlaceholder("Basculer une permission")
             .addOptions(
               permCatalog.CATALOG.filter((p) => permCatalog.isRoleGrantable(p.key)).map((p) =>
-                new StringSelectMenuOptionBuilder().setLabel(`${granted.includes(p.key) ? "✅" : "❌"} ${p.key}`).setDescription(p.label.slice(0, 100)).setValue(p.key)
+                new StringSelectMenuOptionBuilder()
+                  .setLabel(p.key)
+                  .setEmoji(granted.includes(p.key) ? iconDe(guild.id, "SUCCESS") : iconDe(guild.id, "ERROR"))
+                  .setDescription(p.label.slice(0, 100))
+                  .setValue(p.key)
               )
             )
         )
