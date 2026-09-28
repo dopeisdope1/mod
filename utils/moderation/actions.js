@@ -49,6 +49,26 @@ function checkHierarchy(guild, actor, target) {
   return null;
 }
 
+/**
+ * Même refus que checkHierarchy, mais pour une cible qui n'est PAS (ou plus)
+ * membre du serveur — comportement Discord natif pour un ban par ID
+ * ("-zinkiller" doit pouvoir blacklister quelqu'un AVANT qu'il rejoigne).
+ * Sans objet GuildMember, aucune comparaison de rôle n'est possible : on se
+ * limite aux protections absolues (propriétaire, rang sys, soi-même).
+ * @param {import('discord.js').Guild} guild
+ * @param {import('discord.js').GuildMember} actor
+ * @param {string} targetId
+ * @returns {string|null}
+ */
+function checkHierarchyById(guild, actor, targetId) {
+  if (targetId === actor.id) return "Tu ne peux pas agir sur toi-même.";
+  if (targetId === guild.ownerId) return "Impossible d'agir sur le propriétaire du serveur.";
+  if (targetId === guild.client.user.id) return "Je ne peux pas agir sur moi-même.";
+  if (accessStore.isOwner(targetId)) return "Ce membre est propriétaire du bot.";
+  if (accessStore.isAllowed("sys", targetId)) return "Ce membre a le rang sys, retire-le lui d'abord.";
+  return null;
+}
+
 const PERMISSION_LABELS = {
   BanMembers: "Bannir des membres",
   KickMembers: "Expulser des membres",
@@ -114,4 +134,4 @@ async function report(client, params) {
   });
 }
 
-module.exports = { checkHierarchy, botAndRankRefusal, checkBotPermission, report };
+module.exports = { checkHierarchy, checkHierarchyById, botAndRankRefusal, checkBotPermission, report };

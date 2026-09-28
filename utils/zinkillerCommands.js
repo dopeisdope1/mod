@@ -1,7 +1,7 @@
 const { PermissionFlagsBits } = require("discord.js");
 const { buildStatusEmbed } = require("./statusEmbed");
 const { can } = require("./permissions/engine");
-const { checkHierarchy, checkBotPermission, report } = require("./moderation/actions");
+const { checkHierarchy, checkHierarchyById, checkBotPermission, report } = require("./moderation/actions");
 const { formatDuration } = require("./moderationCommands");
 const zinkillerStore = require("./zinkillerStore");
 const { repondreAvecBlacklistCard } = require("./blacklistCard");
@@ -25,7 +25,7 @@ function parseTarget(args) {
   return mention?.[1] || id?.[0] || null;
 }
 
-/** "-zinkiller <@membre|id>" — ouvre la carte "Blacklist · raisons". */
+/** "-zinkiller <@membre|id>" — ouvre la carte "Blacklist · raisons". Fonctionne même si la cible n'est pas (encore) sur le serveur : elle sera bannie par avance, comme un ban Discord normal par ID. */
 async function zinkiller(client, message, args) {
   if (!can(message.member, PERMISSION)) return;
 
@@ -36,13 +36,16 @@ async function zinkiller(client, message, args) {
   const botPerm = checkBotPermission(message.guild, PermissionFlagsBits.BanMembers, "BanMembers");
   if (botPerm) return reply(message, "error", botPerm);
 
-  const target = await message.guild.members.fetch(targetId).catch(() => null);
-  if (!target) return reply(message, "error", "Ce membre n'est pas sur le serveur (mention ou ID d'un membre présent uniquement).");
-
-  const refusal = checkHierarchy(message.guild, message.member, target);
+  const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
+  const refusal = targetMember
+    ? checkHierarchy(message.guild, message.member, targetMember)
+    : checkHierarchyById(message.guild, message.member, targetId);
   if (refusal) return reply(message, "error", refusal);
 
-  return repondreAvecBlacklistCard(message, target);
+  const targetUser = targetMember?.user || (await client.users.fetch(targetId).catch(() => null));
+  if (!targetUser) return reply(message, "error", "Identifiant Discord introuvable.");
+
+  return repondreAvecBlacklistCard(message, targetUser);
 }
 
 /** "-unzinkiller <@membre|id>" — débannit et retire le ban persistant. */

@@ -15,7 +15,7 @@ const {
   MessageFlags,
 } = require("discord.js");
 const { can } = require("./permissions/engine");
-const { checkHierarchy, checkBotPermission, report } = require("./moderation/actions");
+const { checkHierarchy, checkHierarchyById, checkBotPermission, report } = require("./moderation/actions");
 const { formatDuration } = require("./moderationCommands");
 const zinkillerStore = require("./zinkillerStore");
 const banReasonsStore = require("./banReasonsStore");
@@ -23,15 +23,22 @@ const altLinksStore = require("./altLinksStore");
 const messageOwner = require("./messageOwner");
 const { applyAccent } = require("./customizePanel");
 
-// "-zinkiller <@membre>" — carte "Blacklist" en plusieurs étapes (référence
-// fournie) : "raisons" (choisir une raison PRÉDÉFINIE avec son grade
-// éventuel, ou personnalisée, une durée, un double compte) -> "preuves" (SI
-// la raison choisie l'exige, utils/banReasonsStore.js::requiresProof —
-// bloque tant qu'aucune preuve n'est fournie) -> "confirmation" (récap +
-// note libre optionnelle) -> exécution (utils/zinkillerStore.js, persistant
-// comme avant). Remplace l'ancien flux par tokens texte (raisonid:/preuve:/
-// grade:/duree:) — gardait la même logique métier, juste sans l'UX carte
-// demandée.
+// "-zinkiller <@membre|id>" — carte "Blacklist" en plusieurs étapes
+// (référence fournie) : "raisons" (choisir une raison PRÉDÉFINIE avec son
+// grade éventuel, ou personnalisée, une durée, un double compte) ->
+// "preuves" (SI la raison choisie l'exige, utils/banReasonsStore.js::
+// requiresProof — bloque tant qu'aucune preuve n'est fournie) ->
+// "confirmation" (récap + note libre optionnelle) -> exécution (utils/
+// zinkillerStore.js, persistant comme avant). Remplace l'ancien flux par
+// tokens texte (raisonid:/preuve:/grade:/duree:) — gardait la même logique
+// métier, juste sans l'UX carte demandée.
+//
+// Travaille sur un discord.js User (jamais GuildMember) de bout en bout :
+// la cible peut ne PAS être sur le serveur (blacklist préventive avant
+// qu'elle rejoigne, comme un ban Discord normal par ID) — guild.members.ban
+// accepte un ID seul, contrairement à member.ban(). La hiérarchie se
+// vérifie sur le membre s'il existe (checkHierarchy), sinon sur l'ID seul
+// (checkHierarchyById, sans comparaison de rôle possible).
 const CUSTOM_ID = "blcard";
 const PERMISSION = "moderation.zinkiller";
 
@@ -88,7 +95,7 @@ function buildRaisonsCard(guild, target, etat) {
     new TextDisplayBuilder().setContent(
       [
         `**Cible** : ${target} — \`${target.id}\``,
-        `**Pseudo** : ${target.user?.tag || target.user?.username || target.id}`,
+        `**Pseudo** : ${target.tag || target.username || target.id}`,
         `**Grade** : ${etat.reasonGrade || "—"}`,
         `**Durée** : ${dureeChoisie}`,
         "",
@@ -239,8 +246,8 @@ async function handleBlacklistCardInteraction(interaction) {
   const messageId = interaction.message?.id;
   const etat = etats.get(messageId) || etatVide(targetId);
 
-  const target = await interaction.guild.members.fetch(etat.targetId).catch(() => null);
-  if (!target) return interaction.reply({ content: "Ce membre n'est plus sur le serveur.", flags: MessageFlags.Ephemeral });
+  const target = await interaction.client.users.fetch(etat.targetId).catch(() => null);
+  if (!target) return interaction.reply({ content: "Identifiant Discord introuvable.", flags: MessageFlags.Ephemeral });
 
   if (action === "no") {
     etats.delete(messageId);
@@ -332,15 +339,18 @@ async function handleBlacklistCardInteraction(interaction) {
       return interaction.update(buildCard(interaction.guild, target, etat));
     }
 
-    const refusal = checkHierarchy(interaction.guild, interaction.member, target);
+    const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
+    const refusal = targetMember
+      ? checkHierarchy(interaction.guild, interaction.member, targetMember)
+      : checkHierarchyById(interaction.guild, interaction.member, target.id);
     if (refusal) return interaction.reply({ content: refusal, flags: MessageFlags.Ephemeral });
     const botPerm = checkBotPermission(interaction.guild, PermissionFlagsBits.BanMembers, "BanMembers");
     if (botPerm) return interaction.reply({ content: botPerm, flags: MessageFlags.Ephemeral });
 
     const duree = DUREES.find((d) => d.id === etat.dureeId);
-    const tag = target.user.tag;
+    const tag = target.tag;
     try {
-      await target.ban({ reason: `${etat.reasonLabel} — par ${interaction.user.tag}` });
+      await interaction.guild.members.ban(target.id, { reason: `${etat.reasonLabel} — par ${interaction.user.tag}` });
     } catch (err) {
       return interaction.reply({ content: `Discord a refusé : ${err.message}`, flags: MessageFlags.Ephemeral });
     }
