@@ -337,6 +337,7 @@ require("./utils/apiServer")(client, {
   botName: "Moderation",
   commands: PANEL_COMMANDS,
   commandsStore,
+  commandRules,
   getPrefix,
   setPrefix,
   logStore,
