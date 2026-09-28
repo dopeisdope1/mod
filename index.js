@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, Partials, MessageFlags } = require("discord.js");
+const { Client, GatewayIntentBits, MessageFlags } = require("discord.js");
 const statsStore = require("./utils/statsStore");
 const { getPrefix, setPrefix } = require("./utils/prefixStore");
 const { ADMIN_COMMANDS } = require("./utils/adminCommands");
@@ -21,7 +21,7 @@ const commandRules = require("./utils/commandRules");
 const accessStore = require("./utils/accessStore");
 const { config, handleConfigInteraction, CUSTOM_ID: CONFIG_ID } = require("./utils/configCommand");
 const { handleEmojiTextCommand, handleEmojiInteraction, CUSTOM_ID: EMOJI_ID } = require("./utils/emojiPanel");
-const { demanderClearMyBL } = require("./utils/clearMyBlCommands");
+const { clearmybl } = require("./utils/clearMyBlCommands");
 const { perms, helpall } = require("./utils/permsCommands");
 
 // Liste FIXE — construite une seule fois au chargement, jamais recréée à
@@ -46,11 +46,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
   ],
-  // Nécessaire : les DM ne sont jamais mis en cache par défaut, donc
-  // messageCreate ne se déclencherait pas pour "clearmybl" en privé sans ça.
-  partials: [Partials.Channel],
   // Aucun ping par défaut, nulle part — mêmes réglages que les 3 autres bots.
   allowedMentions: { parse: [], repliedUser: false },
 });
@@ -68,13 +64,7 @@ function parseFirstTarget(args) {
 
 // ---- Commandes texte préfixées ----
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.guild) {
-    if (message.content.trim().toLowerCase() === "clearmybl") {
-      return demanderClearMyBL(client, message).catch((err) => console.error("[clearMyBlCommands]", err));
-    }
-    return;
-  }
+  if (message.author.bot || !message.guild) return;
   statsStore.record(message.guild.id, "messages");
 
   const content = message.content.trim();
@@ -121,6 +111,7 @@ client.on("messageCreate", async (message) => {
     if (mot === "unzinkiller") return await unzinkiller(client, message, args);
     if (mot === "zinkillerlist") return await zinkillerlist(client, message);
     if (mot === "blinfo") return await blinfo(client, message, args);
+    if (mot === "clearmybl") return await clearmybl(client, message);
     if (mot === "reasonadd") return await reasonadd(client, message, args);
     if (mot === "reasondel") return await reasondel(client, message, args);
     if (mot === "reasonproof") return await reasonproof(client, message, args);
@@ -251,6 +242,7 @@ const PANEL_COMMANDS = [
   { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
   { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
   { name: "blinfo", category: "Moderation", description: "Consulte une entree blacklist (raison, preuve, grade, duree)." },
+  { name: "clearmybl", category: "Moderation", description: "Retire toutes tes propres entrees blacklist sur ce serveur et debannit." },
   { name: "reasonadd", category: "Moderation", description: "Ajoute une raison de ban predefinie (optionnellement preuve obligatoire)." },
   { name: "reasondel", category: "Moderation", description: "Retire une raison de ban predefinie." },
   { name: "reasonproof", category: "Moderation", description: "Bascule si une raison predefinie exige une preuve." },
