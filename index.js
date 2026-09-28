@@ -21,7 +21,7 @@ const commandRules = require("./utils/commandRules");
 const accessStore = require("./utils/accessStore");
 const { config, handleConfigInteraction, CUSTOM_ID: CONFIG_ID } = require("./utils/configCommand");
 const { handleEmojiTextCommand, handleEmojiInteraction, CUSTOM_ID: EMOJI_ID } = require("./utils/emojiPanel");
-const { demanderClearMyBL, handleClearMyBLInteraction, CUSTOM_ID: CLEARMYBL_ID } = require("./utils/clearMyBlCommands");
+const { demanderClearMyBL } = require("./utils/clearMyBlCommands");
 const { perms, helpall } = require("./utils/permsCommands");
 
 // Liste FIXE — construite une seule fois au chargement, jamais recréée à
@@ -186,9 +186,6 @@ client.on("interactionCreate", async (interaction) => {
   }
   if (interaction.customId?.startsWith(`${EMOJI_ID}:`)) {
     return handleEmojiInteraction(interaction).catch((err) => console.error("[emojiPanel]", err));
-  }
-  if (interaction.customId?.startsWith(`${CLEARMYBL_ID}:`)) {
-    return handleClearMyBLInteraction(interaction).catch((err) => console.error("[clearMyBlCommands]", err));
   }
 });
 
