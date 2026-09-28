@@ -1,6 +1,8 @@
 const {
   PermissionFlagsBits,
   ContainerBuilder,
+  SectionBuilder,
+  ThumbnailBuilder,
   TextDisplayBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
@@ -82,6 +84,13 @@ function etatVide(targetId) {
   };
 }
 
+/** Section avec l'avatar de la cible en vignette à droite (référence fournie) — factorisé, les 3 cartes l'utilisent. */
+function sectionAvecAvatar(target, lignes) {
+  return new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(lignes.join("\n")))
+    .setThumbnailAccessory(new ThumbnailBuilder().setURL(target.displayAvatarURL({ extension: "png", size: 256 })));
+}
+
 function buildRaisonsCard(guild, target, etat) {
   const raisons = banReasonsStore.list(guild.id);
   const dureeChoisie = DUREES.find((d) => d.id === etat.dureeId)?.label || "à choisir";
@@ -91,18 +100,16 @@ function buildRaisonsCard(guild, target, etat) {
   const container = applyAccent(new ContainerBuilder(), guild.id);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Blacklist · raisons"));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      [
-        `**Cible** : ${target} — \`${target.id}\``,
-        `**Pseudo** : ${target.tag || target.username || target.id}`,
-        `**Grade** : ${etat.reasonGrade || "—"}`,
-        `**Durée** : ${dureeChoisie}`,
-        "",
-        `**Raison sélectionnée** : ${etat.reasonLabel || "aucune"}`,
-        `**Double compte de** : ${doubleCompteChoisi}`,
-      ].join("\n")
-    )
+  container.addSectionComponents(
+    sectionAvecAvatar(target, [
+      `**Cible** : ${target} — \`${target.id}\``,
+      `**Pseudo** : ${target.tag || target.username || target.id}`,
+      `**Grade** : ${etat.reasonGrade || "—"}`,
+      `**Durée** : ${dureeChoisie}`,
+      "",
+      `**Raison sélectionnée** : ${etat.reasonLabel || "aucune"}`,
+      `**Double compte de** : ${doubleCompteChoisi}`,
+    ])
   );
 
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
@@ -167,14 +174,12 @@ function buildPreuvesCard(guild, target, etat) {
   const container = applyAccent(new ContainerBuilder(), guild.id);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Blacklist · preuves"));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
-      [
-        `**Cible** : ${target} — \`${target.id}\``,
-        `**Raison** : ${etat.reasonLabel}`,
-        `**État** : ${etat.preuve ? `✅ preuve reçue` : "❌ aucune preuve reçue"}`,
-      ].join("\n")
-    )
+  container.addSectionComponents(
+    sectionAvecAvatar(target, [
+      `**Cible** : ${target} — \`${target.id}\``,
+      `**Raison** : ${etat.reasonLabel}`,
+      `**État** : ${etat.preuve ? `✅ preuve reçue` : "❌ aucune preuve reçue"}`,
+    ])
   );
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
   container.addTextDisplayComponents(
@@ -197,8 +202,9 @@ function buildConfirmationCard(guild, target, etat) {
   const container = applyAccent(new ContainerBuilder(), guild.id);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent("## Blacklist · confirmation"));
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
-  container.addTextDisplayComponents(
-    new TextDisplayBuilder().setContent(
+  container.addSectionComponents(
+    sectionAvecAvatar(
+      target,
       [
         `**Cible** : ${target} — \`${target.id}\``,
         `**Raison** : ${etat.reasonLabel}`,
@@ -206,9 +212,7 @@ function buildConfirmationCard(guild, target, etat) {
         etat.note ? `**Texte** : ${etat.note}` : null,
         `**Preuve** : ${etat.reasonRequiresProof ? (etat.preuve ? `✅ ${etat.preuve}` : "❌ facultative") : "❌ facultative"}`,
         `**Double compte de** : ${etat.linkedToId ? `<@${etat.linkedToId}>` : "aucun"}`,
-      ]
-        .filter(Boolean)
-        .join("\n")
+      ].filter(Boolean)
     )
   );
   container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));
