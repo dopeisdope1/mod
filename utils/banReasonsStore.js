@@ -35,14 +35,23 @@ function list(guildId) {
   return Array.isArray(data[guildId]) ? [...data[guildId]] : [];
 }
 
-/** @returns {{id: string, label: string}} la raison créée. */
-function add(guildId, label) {
+/** @returns {{id: string, label: string, requiresProof: boolean}} la raison créée. */
+function add(guildId, label, requiresProof = false) {
   const data = load();
   if (!Array.isArray(data[guildId])) data[guildId] = [];
-  const entry = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, label };
+  const entry = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, label, requiresProof: Boolean(requiresProof) };
   data[guildId].push(entry);
   save();
   return entry;
+}
+
+/** @returns {boolean} false si l'identifiant n'existait pas. */
+function setRequiresProof(guildId, reasonId, requiresProof) {
+  const entry = get(guildId, reasonId);
+  if (!entry) return false;
+  entry.requiresProof = Boolean(requiresProof);
+  save();
+  return true;
 }
 
 /** @returns {boolean} false si l'identifiant n'existait pas. */
@@ -58,4 +67,4 @@ function remove(guildId, reasonId) {
 
 const get = (guildId, reasonId) => list(guildId).find((r) => r.id === reasonId) || null;
 
-module.exports = { list, add, remove, get };
+module.exports = { list, add, remove, get, setRequiresProof };

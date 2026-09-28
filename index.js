@@ -9,7 +9,8 @@ const { handleBan, handleUnban, handleBanInteraction, ID: BAN_ID } = require("./
 const { handleBanAll, handleBanAllInteraction, ID: BANALL_ID } = require("./utils/banAll");
 const { unbanall, handleUnbanAllInteraction, ID: UNBANALL_ID } = require("./utils/unbanAll");
 const { repondreAvecBanInfo, handleBanInfoInteraction, CUSTOM_ID: BANINFO_ID } = require("./utils/banInfoCard");
-const { zinkiller, unzinkiller, zinkillerlist } = require("./utils/zinkillerCommands");
+const { zinkiller, unzinkiller, zinkillerlist, checkExpiredZinkillers } = require("./utils/zinkillerCommands");
+const { reasonadd, reasondel, reasonproof, reasonlist } = require("./utils/reasonCommands");
 const { help, handleHelpNavInteraction, CUSTOM_ID: HELP_CUSTOM_ID } = require("./utils/helpNavigator");
 const listNavigator = require("./utils/listNavigator");
 const zinkillerStore = require("./utils/zinkillerStore");
@@ -117,6 +118,10 @@ client.on("messageCreate", async (message) => {
     if (mot === "zinkiller") return await zinkiller(client, message, args);
     if (mot === "unzinkiller") return await unzinkiller(client, message, args);
     if (mot === "zinkillerlist") return await zinkillerlist(client, message);
+    if (mot === "reasonadd") return await reasonadd(client, message, args);
+    if (mot === "reasondel") return await reasondel(client, message, args);
+    if (mot === "reasonproof") return await reasonproof(client, message, args);
+    if (mot === "reasonlist") return await reasonlist(client, message);
     if (mot === "perms") return await perms(client, message);
     if (mot === "helpall") return await helpall(client, message);
 
@@ -202,6 +207,7 @@ client.on("guildBanRemove", async (ban) => {
 setInterval(() => {
   moderationExtra.checkExpiredMutes(client).catch((err) => console.error("[mute]", err));
   moderationExtra.checkExpiredTempbans(client).catch((err) => console.error("[tempban]", err));
+  checkExpiredZinkillers(client).catch((err) => console.error("[zinkiller]", err));
 }, 30_000);
 
 // Statistiques du panel (voir utils/statsStore.js) : comptées en mémoire,
@@ -237,9 +243,13 @@ const PANEL_COMMANDS = [
   { name: "unban", category: "Moderation", description: "Debannit un membre." },
   { name: "banall", category: "Moderation", description: "Bannit plusieurs membres a la fois." },
   { name: "unbanall", category: "Moderation", description: "Debannit tous les membres bannis." },
-  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs), avec preuve:<lien> et grade:1-5 optionnels." },
+  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs), avec raisonid:/preuve:/grade:/duree: optionnels." },
   { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
   { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
+  { name: "reasonadd", category: "Moderation", description: "Ajoute une raison de ban predefinie (optionnellement preuve obligatoire)." },
+  { name: "reasondel", category: "Moderation", description: "Retire une raison de ban predefinie." },
+  { name: "reasonproof", category: "Moderation", description: "Bascule si une raison predefinie exige une preuve." },
+  { name: "reasonlist", category: "Moderation", description: "Liste les raisons de ban predefinies." },
   { name: "perms", category: "Moderation", description: "Affiche les paliers de permissions accordes et les commandes qu'ils debloquent." },
   { name: "helpall", category: "Moderation", description: "Affiche les paliers de permissions accordes et les roles associes." },
   { name: "kick", category: "Moderation", description: "Expulse un membre du serveur." },

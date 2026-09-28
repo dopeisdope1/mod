@@ -122,8 +122,12 @@ async function handleClearMyBLInteraction(interaction) {
 
     await report(interaction.client, {
       guildId: guild.id,
-      title: "ClearMyBL — blacklist levée",
-      fields: [{ label: "Cible", value: `<@${userId}> (${userId})` }],
+      title: "Blacklist retirée — ClearMyBL",
+      fields: [
+        { label: "Cible", value: `<@${userId}> (${userId})` },
+        ...(entry?.grade ? [{ label: "Grade appliqué", value: `${entry.grade}` }] : []),
+        { label: "Ban sur ny", value: "levé" },
+      ],
       action: "clearmybl",
       targetId: userId,
       targetTag: ciblePourDM?.tag || userId,

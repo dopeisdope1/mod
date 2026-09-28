@@ -42,16 +42,31 @@ function isZinkilled(guildId, userId) {
   return Boolean(guildEntry(guildId)[userId]);
 }
 
-/** @param {{ reason?: string, moderatorId: string, preuve?: string, grade?: number }} info */
+/** @param {{ reason?: string, moderatorId: string, preuve?: string, grade?: number, expiresAt?: number }} info */
 function add(guildId, userId, info) {
   guildEntry(guildId)[userId] = {
     reason: info.reason || null,
     moderatorId: info.moderatorId,
     preuve: info.preuve || null,
     grade: info.grade || null,
+    expiresAt: info.expiresAt || null,
     at: Date.now(),
   };
   save();
+}
+
+/** @returns {{ guildId: string, userId: string, reason: string|null, moderatorId: string, preuve: string|null, grade: number|null, expiresAt: number, at: number }[]} entrées temporaires arrivées à échéance, tous serveurs confondus. */
+function getExpired() {
+  const data = load();
+  const maintenant = Date.now();
+  const expirees = [];
+  for (const [guildId, entries] of Object.entries(data)) {
+    for (const [userId, info] of Object.entries(entries)) {
+      if (userId === "__config") continue;
+      if (info.expiresAt && info.expiresAt <= maintenant) expirees.push({ guildId, userId, ...info });
+    }
+  }
+  return expirees;
 }
 
 /** @returns {object|null} l'entrée retirée, ou null si elle n'existait pas. */
@@ -89,4 +104,4 @@ function setEnabled(guildId, enabled) {
   save();
 }
 
-module.exports = { isZinkilled, add, remove, list, get, getConfig, setEnabled };
+module.exports = { isZinkilled, add, remove, list, get, getExpired, getConfig, setEnabled };
