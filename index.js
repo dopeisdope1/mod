@@ -20,6 +20,7 @@ const accessStore = require("./utils/accessStore");
 const { config, handleConfigInteraction, CUSTOM_ID: CONFIG_ID } = require("./utils/configCommand");
 const { handleEmojiTextCommand, handleEmojiInteraction, CUSTOM_ID: EMOJI_ID } = require("./utils/emojiPanel");
 const { demanderClearMyBL, handleClearMyBLInteraction, CUSTOM_ID: CLEARMYBL_ID } = require("./utils/clearMyBlCommands");
+const { perms, helpall } = require("./utils/permsCommands");
 
 // Liste FIXE — construite une seule fois au chargement, jamais recréée à
 // chaque clic (même principe que discord-music-bot/index.js et
@@ -116,6 +117,8 @@ client.on("messageCreate", async (message) => {
     if (mot === "zinkiller") return await zinkiller(client, message, args);
     if (mot === "unzinkiller") return await unzinkiller(client, message, args);
     if (mot === "zinkillerlist") return await zinkillerlist(client, message);
+    if (mot === "perms") return await perms(client, message);
+    if (mot === "helpall") return await helpall(client, message);
 
     if (mot === "clear" && (args[0] || "").toLowerCase() === "sanctions") return await moderationExtra.clearSanctions(client, message, args.slice(1));
     if (mot === "clear" && (args[0] || "").toLowerCase() === "all" && (args[1] || "").toLowerCase() === "sanctions") {
@@ -237,6 +240,8 @@ const PANEL_COMMANDS = [
   { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs), avec preuve:<lien> et grade:1-5 optionnels." },
   { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
   { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
+  { name: "perms", category: "Moderation", description: "Affiche les paliers de permissions accordes et les commandes qu'ils debloquent." },
+  { name: "helpall", category: "Moderation", description: "Affiche les paliers de permissions accordes et les roles associes." },
   { name: "kick", category: "Moderation", description: "Expulse un membre du serveur." },
   { name: "softban", category: "Moderation", description: "Bannit puis debannit immediatement (purge les messages)." },
   { name: "timeout", category: "Moderation", description: "Mute temporairement un membre (timeout Discord)." },
