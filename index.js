@@ -107,9 +107,9 @@ client.on("messageCreate", async (message) => {
       }
       return await moderationExtra.baninfo(client, message, args);
     }
-    if (mot === "zinkiller") return await zinkiller(client, message, args);
-    if (mot === "unzinkiller") return await unzinkiller(client, message, args);
-    if (mot === "zinkillerlist") return await zinkillerlist(client, message);
+    if (mot === "zinkiller" || mot === "bl") return await zinkiller(client, message, args);
+    if (mot === "unzinkiller" || mot === "unbl") return await unzinkiller(client, message, args);
+    if (mot === "zinkillerlist" || mot === "bllist") return await zinkillerlist(client, message);
     if (mot === "blinfo") return await blinfo(client, message, args);
     if (mot === "clearmybl") return await clearmybl(client, message);
     if (mot === "reasonadd") return await reasonadd(client, message, args);
@@ -238,9 +238,9 @@ const PANEL_COMMANDS = [
   { name: "unban", category: "Moderation", description: "Debannit un membre." },
   { name: "banall", category: "Moderation", description: "Bannit plusieurs membres a la fois." },
   { name: "unbanall", category: "Moderation", description: "Debannit tous les membres bannis." },
-  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs) - ouvre la carte Blacklist (raisons/preuves/confirmation)." },
-  { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
-  { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
+  { name: "zinkiller / bl", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs) - ouvre la carte Blacklist (raisons/preuves/confirmation)." },
+  { name: "unzinkiller / unbl", category: "Moderation", description: "Retire le ban persistant d'un membre." },
+  { name: "zinkillerlist / bllist", category: "Moderation", description: "Liste les bans persistants actifs." },
   { name: "blinfo", category: "Moderation", description: "Consulte une entree blacklist (raison, preuve, grade, duree)." },
   { name: "clearmybl", category: "Moderation", description: "Retire toutes tes propres entrees blacklist sur ce serveur et debannit." },
   { name: "reasonadd", category: "Moderation", description: "Ajoute une raison de ban predefinie (optionnellement preuve obligatoire)." },
