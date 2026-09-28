@@ -22,6 +22,7 @@ const messageOwner = require("./messageOwner");
 const { can } = require("./permissions/engine");
 const permStore = require("./permissions/store");
 const permCatalog = require("./permissions/catalog");
+const tierStore = require("./permissions/tierStore");
 const commandsStore = require("./commandsStore");
 const commandRules = require("./commandRules");
 const { getPrefix, setPrefix } = require("./prefixStore");
@@ -101,6 +102,12 @@ const SECTIONS = [
     key: "commands",
     label: "Gestion des commandes",
     description: "Activer/désactiver, rôles/membres/salons autorisés-interdits, par commande",
+    permission: "panel.permissions.manage",
+  },
+  {
+    key: "tiers",
+    label: "Paliers",
+    description: "Échelle de permissions cumulative à 12 niveaux, rôles liés",
     permission: "panel.permissions.manage",
   },
   { key: "sys", label: "Rang sys", description: "Qui a accès à tout le bot", ownerOnly: true },
@@ -196,6 +203,34 @@ function sectionBody(section, guild, member, state) {
     if (!state.textsCategorie) return "> Choisis une catégorie ci-dessous, puis le texte à voir/modifier.";
     if (!state.textsSelected) return `> **${state.textsCategorie}** — choisis un texte ci-dessous.`;
     return `> **${textLabelFor(state.textsCategorie, state.textsSelected)}** :\n${textValueFor(guildId, state.textsCategorie, state.textsSelected)}`;
+  }
+
+  if (section === "tiers") {
+    const i = state.tiersSelected;
+    if (!i) {
+      const lignes = [];
+      for (let n = 1; n <= tierStore.NB_PALIERS; n++) {
+        const label = tierStore.getTierLabel(guildId, n);
+        const count = tierStore.getTierPermissions(guildId, n).length;
+        lignes.push(`> **${n}. ${label}** — ${count} permission(s) propre(s)`);
+      }
+      lignes.push("> Choisis un palier ci-dessous pour le configurer. Cumulatif : un membre au palier N hérite aussi des permissions des paliers < N.");
+      return lignes.join("\n");
+    }
+    const label = tierStore.getTierLabel(guildId, i);
+    const granted = tierStore.getTierPermissions(guildId, i);
+    const rolesLies = Object.entries(tierStore.getLinkedRoles(guildId)).filter(([, idx]) => idx === i).map(([roleId]) => `<@&${roleId}>`);
+    const membresAssignes = Object.entries(tierStore.getUserAssignments(guildId)).filter(([, idx]) => idx === i).map(([userId]) => `<@${userId}>`);
+    const lignesPerm = permCatalog.CATALOG.filter((p) => permCatalog.isRoleGrantable(p.key)).map(
+      (p) => `${granted.includes(p.key) ? iconDe(guildId, "SUCCESS") : iconDe(guildId, "ERROR")} \`${p.key}\` — ${p.label}`
+    );
+    return [
+      `> **Palier ${i}** : ${label}`,
+      `> **Rôles liés** : ${rolesLies.length ? rolesLies.join(", ") : "*aucun*"}`,
+      `> **Membres affectés directement** : ${membresAssignes.length ? membresAssignes.join(", ") : "*aucun*"}`,
+      "",
+      ...lignesPerm,
+    ].join("\n");
   }
 
   if (section === "sys") {
@@ -331,6 +366,82 @@ function buildPanel(guild, current = "home", member, state = {}) {
         container.addActionRowComponents(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`${ID}:cmdallowchannel:${cmdName}`).setPlaceholder("Ajouter/retirer un salon autorisé")));
       } else if (aspect === "denyChannel") {
         container.addActionRowComponents(new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId(`${ID}:cmddenychannel:${cmdName}`).setPlaceholder("Ajouter/retirer un salon interdit")));
+      }
+    }
+  } else if (meta.key === "tiers") {
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${ID}:tierpick`)
+          .setPlaceholder("Choisir un palier")
+          .addOptions(
+            Array.from({ length: tierStore.NB_PALIERS }, (_, n) => n + 1).map((i) =>
+              new StringSelectMenuOptionBuilder().setLabel(`${i}. ${tierStore.getTierLabel(guild.id, i)}`.slice(0, 100)).setValue(String(i)).setDefault(state.tiersSelected === i)
+            )
+          )
+      )
+    );
+    if (state.tiersSelected) {
+      const i = state.tiersSelected;
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`${ID}:tierrename:${i}`).setLabel("Renommer ce palier").setStyle(ButtonStyle.Secondary)
+        )
+      );
+      const granted = tierStore.getTierPermissions(guild.id, i);
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`${ID}:tiertoggle:${i}`)
+            .setPlaceholder("Basculer une permission de ce palier")
+            .addOptions(
+              permCatalog.CATALOG.filter((p) => permCatalog.isRoleGrantable(p.key)).map((p) =>
+                new StringSelectMenuOptionBuilder()
+                  .setLabel(p.key)
+                  .setEmoji(granted.includes(p.key) ? iconDe(guild.id, "SUCCESS") : iconDe(guild.id, "ERROR"))
+                  .setDescription(p.label.slice(0, 100))
+                  .setValue(p.key)
+              )
+            )
+        )
+      );
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId(`${ID}:tierrolelink:${i}`).setPlaceholder(`Lier un rôle au palier ${i}`))
+      );
+      container.addActionRowComponents(
+        new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`${ID}:tieruserassign:${i}`).setPlaceholder(`Affecter un membre au palier ${i}`))
+      );
+      const rolesLies = Object.entries(tierStore.getLinkedRoles(guild.id))
+        .filter(([, idx]) => idx === i)
+        .map(([roleId]) => roleId);
+      if (rolesLies.length) {
+        container.addActionRowComponents(
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(`${ID}:tierroleunlink:${i}`)
+              .setPlaceholder("Délier un rôle de ce palier")
+              .addOptions(
+                rolesLies.slice(0, 25).map((roleId) => new StringSelectMenuOptionBuilder().setLabel((guild.roles.cache.get(roleId)?.name || roleId).slice(0, 100)).setValue(roleId))
+              )
+          )
+        );
+      }
+      const membresAssignes = Object.entries(tierStore.getUserAssignments(guild.id))
+        .filter(([, idx]) => idx === i)
+        .map(([userId]) => userId);
+      if (membresAssignes.length) {
+        container.addActionRowComponents(
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(`${ID}:tieruserunassign:${i}`)
+              .setPlaceholder("Retirer un membre de ce palier")
+              .addOptions(
+                membresAssignes
+                  .slice(0, 25)
+                  .map((userId) => new StringSelectMenuOptionBuilder().setLabel((guild.members.cache.get(userId)?.user?.tag || userId).slice(0, 100)).setValue(userId))
+              )
+          )
+        );
       }
     }
   } else if (meta.key === "appearance") {
@@ -490,6 +601,67 @@ async function handleConfigInteraction(interaction) {
     const already = current.includes(key);
     permStore.setRoleGrants(guild.id, roleId, already ? current.filter((k) => k !== key) : [...current, key]);
     return goto("permissions", { permissionsRoleId: roleId });
+  }
+
+  if (action === "tierpick") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    return goto("tiers", { tiersSelected: Number(interaction.values[0]) });
+  }
+
+  if (action === "tierrename") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    const i = Number(extra);
+    if (interaction.isModalSubmit()) {
+      const label = interaction.fields.getTextInputValue("label").trim();
+      if (!label) return interaction.reply({ content: "Nom vide, rien n'a été changé.", flags: MessageFlags.Ephemeral });
+      tierStore.setTierLabel(guild.id, i, label);
+      await interaction.reply({ content: `Palier ${i} renommé en **${label}**.`, flags: MessageFlags.Ephemeral });
+      return interaction.message?.edit(buildPanel(guild, "tiers", member, { tiersSelected: i })).catch(() => {});
+    }
+    const modal = new ModalBuilder()
+      .setCustomId(`${ID}:tierrename:${i}`)
+      .setTitle(`Renommer le palier ${i}`)
+      .addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId("label").setLabel("Nouveau nom").setStyle(TextInputStyle.Short).setMaxLength(50).setRequired(true).setValue(tierStore.getTierLabel(guild.id, i))
+        )
+      );
+    return interaction.showModal(modal);
+  }
+
+  if (action === "tiertoggle") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    const i = Number(extra);
+    tierStore.togglePermission(guild.id, i, interaction.values[0]);
+    return goto("tiers", { tiersSelected: i });
+  }
+
+  if (action === "tierrolelink") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    const i = Number(extra);
+    tierStore.linkRole(guild.id, interaction.values[0], i);
+    return goto("tiers", { tiersSelected: i });
+  }
+
+  if (action === "tierroleunlink") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    const i = Number(extra);
+    tierStore.unlinkRole(guild.id, interaction.values[0]);
+    return goto("tiers", { tiersSelected: i });
+  }
+
+  if (action === "tieruserassign") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    const i = Number(extra);
+    tierStore.assignUser(guild.id, interaction.values[0], i);
+    return goto("tiers", { tiersSelected: i });
+  }
+
+  if (action === "tieruserunassign") {
+    if (!can(member, "panel.permissions.manage")) return denied();
+    const i = Number(extra);
+    tierStore.unassignUser(guild.id, interaction.values[0]);
+    return goto("tiers", { tiersSelected: i });
   }
 
   if (action === "cmdselect") return goto("commands", { commandsSelected: interaction.values[0] });
