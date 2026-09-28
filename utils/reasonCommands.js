@@ -43,6 +43,17 @@ async function reasonproof(client, message, args) {
   return reply(message, "success", `Preuve ${!entry.requiresProof ? "désormais **obligatoire**" : "désormais **facultative**"} pour **${entry.label}**.`);
 }
 
+/** "-reasongrade <id> <grade>" — étiquette libre (ex: "Trust", "Sévère") attachée à cette raison, affichée sur la carte blacklist. Sans second argument : retire le grade. */
+async function reasongrade(client, message, args) {
+  if (!can(message.member, PERMISSION)) return;
+  const id = args[0];
+  const entry = id ? banReasonsStore.get(message.guild.id, id) : null;
+  if (!entry) return reply(message, "error", "Indique l'identifiant d'une raison existante : `reasongrade <id> [grade]` (voir `reasonlist`).");
+  const grade = args.slice(1).join(" ").trim() || null;
+  banReasonsStore.setGrade(message.guild.id, id, grade);
+  return reply(message, "success", grade ? `Grade **${grade}** attaché à **${entry.label}**.` : `Grade retiré de **${entry.label}**.`);
+}
+
 /** "-reasonlist" */
 async function reasonlist(client, message) {
   if (!can(message.member, PERMISSION)) return;
@@ -50,8 +61,8 @@ async function reasonlist(client, message) {
   if (!raisons.length) {
     return reply(message, "info", "Aucune raison prédéfinie (voir `reasonadd <libellé> [obligatoire]`).");
   }
-  const lignes = raisons.map((r) => `\`${r.id}\` — **${r.label}**${r.requiresProof ? " (preuve obligatoire)" : ""}`);
+  const lignes = raisons.map((r) => `\`${r.id}\` — **${r.label}**${r.grade ? ` — grade ${r.grade}` : ""}${r.requiresProof ? " (preuve obligatoire)" : ""}`);
   return reply(message, "info", lignes.join("\n"));
 }
 
-module.exports = { reasonadd, reasondel, reasonproof, reasonlist };
+module.exports = { reasonadd, reasondel, reasonproof, reasongrade, reasonlist };

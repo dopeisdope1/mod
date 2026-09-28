@@ -35,11 +35,16 @@ function list(guildId) {
   return Array.isArray(data[guildId]) ? [...data[guildId]] : [];
 }
 
-/** @returns {{id: string, label: string, requiresProof: boolean}} la raison créée. */
-function add(guildId, label, requiresProof = false) {
+/** @returns {{id: string, label: string, requiresProof: boolean, grade: string|null}} la raison créée. */
+function add(guildId, label, requiresProof = false, grade = null) {
   const data = load();
   if (!Array.isArray(data[guildId])) data[guildId] = [];
-  const entry = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, label, requiresProof: Boolean(requiresProof) };
+  const entry = {
+    id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    label,
+    requiresProof: Boolean(requiresProof),
+    grade: grade || null,
+  };
   data[guildId].push(entry);
   save();
   return entry;
@@ -50,6 +55,15 @@ function setRequiresProof(guildId, reasonId, requiresProof) {
   const entry = get(guildId, reasonId);
   if (!entry) return false;
   entry.requiresProof = Boolean(requiresProof);
+  save();
+  return true;
+}
+
+/** @returns {boolean} false si l'identifiant n'existait pas. Grade = étiquette libre (ex: "Trust", "Sévère") propre à cette raison, affichée telle quelle — pas un nombre imposé. */
+function setGrade(guildId, reasonId, grade) {
+  const entry = get(guildId, reasonId);
+  if (!entry) return false;
+  entry.grade = grade || null;
   save();
   return true;
 }
@@ -67,4 +81,4 @@ function remove(guildId, reasonId) {
 
 const get = (guildId, reasonId) => list(guildId).find((r) => r.id === reasonId) || null;
 
-module.exports = { list, add, remove, get, setRequiresProof };
+module.exports = { list, add, remove, get, setRequiresProof, setGrade };

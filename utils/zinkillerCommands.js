@@ -2,9 +2,9 @@ const { PermissionFlagsBits } = require("discord.js");
 const { buildStatusEmbed } = require("./statusEmbed");
 const { can } = require("./permissions/engine");
 const { checkHierarchy, checkBotPermission, report } = require("./moderation/actions");
-const { parseDuration, formatDuration } = require("./moderationCommands");
+const { formatDuration } = require("./moderationCommands");
 const zinkillerStore = require("./zinkillerStore");
-const banReasonsStore = require("./banReasonsStore");
+const { repondreAvecBlacklistCard } = require("./blacklistCard");
 const listNavigator = require("./listNavigator");
 
 // "-zinkiller"/"-unzinkiller" — ban PERSISTANT : re-banni automatiquement si
@@ -12,6 +12,9 @@ const listNavigator = require("./listNavigator");
 // autre bot...) — voir l'écouteur guildBanRemove dans index.js et
 // utils/zinkillerStore.js. Distinct de -ban/-unban (utils/banPanel.js), qui
 // restent un bannissement Discord ordinaire, sans ce filet.
+// "-zinkiller <@membre>" ouvre la carte interactive (utils/blacklistCard.js,
+// raisons -> preuves -> confirmation) — plus de tokens texte (raisonid:/
+// preuve:/grade:/duree:), remplacés par l'UX carte demandée.
 const PERMISSION = "moderation.zinkiller";
 
 const reply = (message, kind, text) => message.reply(buildStatusEmbed(kind, text, { guildId: message.guild.id }));
@@ -22,103 +25,24 @@ function parseTarget(args) {
   return mention?.[1] || id?.[0] || null;
 }
 
-const GRADES = { 1: "Mineur", 2: "Modéré", 3: "Grave", 4: "Sévère", 5: "Critique" };
-
-/** Extrait "preuve:<lien/texte>", "grade:<1-5>", "duree:<Xs/m/h/d>" et "raisonid:<id>" du reste des args, où qu'ils soient — le reste forme la raison libre. */
-function parseEnrichissement(reste) {
-  let preuve = null;
-  let grade = null;
-  let dureeBrute = null;
-  let raisonId = null;
-  const mots = [];
-  for (const mot of reste) {
-    const mPreuve = mot.match(/^preuve:(.+)$/i);
-    const mGrade = mot.match(/^grade:([1-5])$/i);
-    const mDuree = mot.match(/^duree:(.+)$/i);
-    const mRaisonId = mot.match(/^raisonid:(.+)$/i);
-    if (mPreuve) preuve = mPreuve[1];
-    else if (mGrade) grade = Number(mGrade[1]);
-    else if (mDuree) dureeBrute = mDuree[1];
-    else if (mRaisonId) raisonId = mRaisonId[1];
-    else mots.push(mot);
-  }
-  return { preuve, grade, dureeBrute, raisonId, reason: mots.join(" ") || null };
-}
-
-/** "-zinkiller <@membre|id> [raisonid:<id>] [preuve:<lien>] [grade:1-5] [duree:<Xs/m/h/d>] [raison]" — bannit et rend le bannissement persistant (permanent par défaut, temporaire si "duree:" est donné). */
+/** "-zinkiller <@membre|id>" — ouvre la carte "Blacklist · raisons". */
 async function zinkiller(client, message, args) {
   if (!can(message.member, PERMISSION)) return;
 
   const targetId = parseTarget(args);
-  if (!targetId) {
-    return reply(
-      message,
-      "error",
-      "Indique un membre (mention ou identifiant) : `zinkiller @membre|id [raisonid:<id>] [preuve:<lien>] [grade:1-5] [duree:<Xs/m/h/d>] [raison]`."
-    );
-  }
+  if (!targetId) return reply(message, "error", "Indique un membre (mention ou identifiant) : `zinkiller @membre|id`.");
   if (targetId === message.author.id) return reply(message, "error", "Tu ne peux pas agir sur toi-même.");
 
   const botPerm = checkBotPermission(message.guild, PermissionFlagsBits.BanMembers, "BanMembers");
   if (botPerm) return reply(message, "error", botPerm);
 
-  const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
-  if (targetMember) {
-    const refusal = checkHierarchy(message.guild, message.member, targetMember);
-    if (refusal) return reply(message, "error", refusal);
-  }
+  const target = await message.guild.members.fetch(targetId).catch(() => null);
+  if (!target) return reply(message, "error", "Ce membre n'est pas sur le serveur (mention ou ID d'un membre présent uniquement).");
 
-  const { preuve, grade, dureeBrute, raisonId, reason: raisonLibre } = parseEnrichissement(args.slice(1));
+  const refusal = checkHierarchy(message.guild, message.member, target);
+  if (refusal) return reply(message, "error", refusal);
 
-  let raisonPredefinie = null;
-  if (raisonId) {
-    raisonPredefinie = banReasonsStore.get(message.guild.id, raisonId);
-    if (!raisonPredefinie) return reply(message, "error", "Identifiant de raison inconnu (voir `reasonlist`).");
-  }
-  if (raisonPredefinie?.requiresProof && !preuve) {
-    return reply(message, "error", `La raison **${raisonPredefinie.label}** exige une preuve : ajoute \`preuve:<lien>\`.`);
-  }
-  const reason = raisonPredefinie?.label || raisonLibre;
-
-  let dureeMs = null;
-  if (dureeBrute) {
-    dureeMs = parseDuration(dureeBrute);
-    if (!dureeMs) return reply(message, "error", "Durée invalide (ex: `duree:7d`) — laisse `duree:` de côté pour un ban permanent.");
-  }
-
-  const targetTag = targetMember?.user.tag || targetId;
-
-  try {
-    await message.guild.members.ban(targetId, { reason: reason || `zinkiller — par ${message.author.tag}` });
-  } catch (err) {
-    return reply(message, "error", `Discord a refusé : ${err.message}`);
-  }
-
-  const expiresAt = dureeMs ? Date.now() + dureeMs : null;
-  zinkillerStore.add(message.guild.id, targetId, { reason, moderatorId: message.author.id, preuve, grade, expiresAt });
-
-  await report(client, {
-    guildId: message.guild.id,
-    title: "Blacklist mise à jour",
-    fields: [
-      { label: "Cible", value: `<@${targetId}> (${targetId})` },
-      { label: "Durée", value: dureeMs ? formatDuration(dureeMs) : "Permanente" },
-      ...(grade ? [{ label: "Grade", value: `${grade} — ${GRADES[grade]}` }] : []),
-      ...(preuve ? [{ label: "Preuve", value: preuve }] : []),
-    ],
-    action: "zinkiller",
-    targetId,
-    targetTag,
-    moderator: message.author,
-    reason,
-    channelId: message.channel.id,
-  });
-
-  return reply(
-    message,
-    "success",
-    `**${targetTag}** banni ${dureeMs ? `pour ${formatDuration(dureeMs)}` : "définitivement"} et re-banni automatiquement s'il est débanni ailleurs que par \`unzinkiller\`.`
-  );
+  return repondreAvecBlacklistCard(message, target);
 }
 
 /** "-unzinkiller <@membre|id>" — débannit et retire le ban persistant. */
@@ -148,7 +72,7 @@ async function unzinkiller(client, message, args) {
     title: "Blacklist retirée",
     fields: [
       { label: "Cible", value: `<@${targetId}> (${targetId})` },
-      ...(removed?.grade ? [{ label: "Grade appliqué", value: `${removed.grade} — ${GRADES[removed.grade]}` }] : []),
+      ...(removed?.grade ? [{ label: "Grade appliqué", value: removed.grade }] : []),
       { label: "Ban sur ny", value: "levé" },
     ],
     action: "unzinkiller",
@@ -159,6 +83,28 @@ async function unzinkiller(client, message, args) {
   });
 
   return reply(message, "success", `**${existing.user.tag}** débanni, le ban persistant est retiré.`);
+}
+
+/** "-blinfo <@membre|id>" — consultation d'une entrée blacklist (lecture seule), comme "-baninfo" pour un ban classique. */
+async function blinfo(client, message, args) {
+  if (!can(message.member, "logs.view")) return;
+  const targetId = parseTarget(args);
+  if (!targetId) return reply(message, "error", "Indique un identifiant : `blinfo <id>`.");
+
+  const entry = zinkillerStore.get(message.guild.id, targetId);
+  if (!entry) return reply(message, "info", "Aucune entrée blacklist enregistrée pour cet identifiant.");
+
+  const lignes = [
+    `**Cible** : <@${targetId}> (${targetId})`,
+    `**Auteur** : <@${entry.moderatorId}>`,
+    entry.reason ? `**Raison** : ${entry.reason}` : null,
+    entry.grade ? `**Grade** : ${entry.grade}` : null,
+    entry.preuve ? `**Preuve** : ${entry.preuve}` : null,
+    entry.note ? `**Texte** : ${entry.note}` : null,
+    `**Durée** : ${entry.expiresAt ? `expire <t:${Math.floor(entry.expiresAt / 1000)}:R>` : "permanente"}`,
+    `**Depuis** : <t:${Math.floor(entry.at / 1000)}:F>`,
+  ].filter(Boolean);
+  return reply(message, "info", lignes.join("\n"));
 }
 
 /** Appelé périodiquement (voir index.js) pour débannir les blacklist temporaires arrivées à échéance. */
@@ -174,7 +120,7 @@ async function checkExpiredZinkillers(client) {
       title: "Blacklist retirée — expiration",
       fields: [
         { label: "Cible", value: `<@${entry.userId}> (${entry.userId})` },
-        ...(entry.grade ? [{ label: "Grade appliqué", value: `${entry.grade} — ${GRADES[entry.grade]}` }] : []),
+        ...(entry.grade ? [{ label: "Grade appliqué", value: entry.grade }] : []),
         { label: "Ban sur ny", value: "levé" },
       ],
       action: "zinkiller_expire",
@@ -201,7 +147,7 @@ listNavigator.registerProvider("zinkillerlist", (guild) => {
     lines: entries.map((e) =>
       [
         `<@${e.userId}> (${e.userId}) — par <@${e.moderatorId}>`,
-        e.grade ? `grade ${e.grade} (${GRADES[e.grade]})` : null,
+        e.grade ? `grade ${e.grade}` : null,
         e.reason ? `raison : ${e.reason}` : null,
         e.preuve ? `preuve : ${e.preuve}` : null,
         e.expiresAt ? `fin : <t:${Math.floor(e.expiresAt / 1000)}:R>` : "permanente",
@@ -212,4 +158,4 @@ listNavigator.registerProvider("zinkillerlist", (guild) => {
   };
 });
 
-module.exports = { zinkiller, unzinkiller, zinkillerlist, checkExpiredZinkillers };
+module.exports = { zinkiller, unzinkiller, blinfo, zinkillerlist, checkExpiredZinkillers };

@@ -42,13 +42,14 @@ function isZinkilled(guildId, userId) {
   return Boolean(guildEntry(guildId)[userId]);
 }
 
-/** @param {{ reason?: string, moderatorId: string, preuve?: string, grade?: number, expiresAt?: number }} info */
+/** @param {{ reason?: string, moderatorId: string, preuve?: string, grade?: string, note?: string, expiresAt?: number }} info */
 function add(guildId, userId, info) {
   guildEntry(guildId)[userId] = {
     reason: info.reason || null,
     moderatorId: info.moderatorId,
     preuve: info.preuve || null,
     grade: info.grade || null,
+    note: info.note || null,
     expiresAt: info.expiresAt || null,
     at: Date.now(),
   };

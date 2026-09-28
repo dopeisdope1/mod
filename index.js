@@ -9,8 +9,9 @@ const { handleBan, handleUnban, handleBanInteraction, ID: BAN_ID } = require("./
 const { handleBanAll, handleBanAllInteraction, ID: BANALL_ID } = require("./utils/banAll");
 const { unbanall, handleUnbanAllInteraction, ID: UNBANALL_ID } = require("./utils/unbanAll");
 const { repondreAvecBanInfo, handleBanInfoInteraction, CUSTOM_ID: BANINFO_ID } = require("./utils/banInfoCard");
-const { zinkiller, unzinkiller, zinkillerlist, checkExpiredZinkillers } = require("./utils/zinkillerCommands");
-const { reasonadd, reasondel, reasonproof, reasonlist } = require("./utils/reasonCommands");
+const { zinkiller, unzinkiller, blinfo, zinkillerlist, checkExpiredZinkillers } = require("./utils/zinkillerCommands");
+const { handleBlacklistCardInteraction, CUSTOM_ID: BLCARD_ID } = require("./utils/blacklistCard");
+const { reasonadd, reasondel, reasonproof, reasongrade, reasonlist } = require("./utils/reasonCommands");
 const { help, handleHelpNavInteraction, CUSTOM_ID: HELP_CUSTOM_ID } = require("./utils/helpNavigator");
 const listNavigator = require("./utils/listNavigator");
 const zinkillerStore = require("./utils/zinkillerStore");
@@ -31,6 +32,7 @@ const PANNEAUX_PRIVES = [
   `${BANALL_ID}:`,
   `${UNBANALL_ID}:`,
   `${BANINFO_ID}:`,
+  `${BLCARD_ID}:`,
   `${HELP_CUSTOM_ID}:`,
   `${listNavigator.CUSTOM_ID}:`,
   `${CONFIG_ID}:`,
@@ -118,9 +120,11 @@ client.on("messageCreate", async (message) => {
     if (mot === "zinkiller") return await zinkiller(client, message, args);
     if (mot === "unzinkiller") return await unzinkiller(client, message, args);
     if (mot === "zinkillerlist") return await zinkillerlist(client, message);
+    if (mot === "blinfo") return await blinfo(client, message, args);
     if (mot === "reasonadd") return await reasonadd(client, message, args);
     if (mot === "reasondel") return await reasondel(client, message, args);
     if (mot === "reasonproof") return await reasonproof(client, message, args);
+    if (mot === "reasongrade") return await reasongrade(client, message, args);
     if (mot === "reasonlist") return await reasonlist(client, message);
     if (mot === "perms") return await perms(client, message);
     if (mot === "helpall") return await helpall(client, message);
@@ -170,6 +174,9 @@ client.on("interactionCreate", async (interaction) => {
   }
   if (interaction.customId?.startsWith(`${BANINFO_ID}:`)) {
     return handleBanInfoInteraction(interaction).catch((err) => console.error("[banInfoCard]", err));
+  }
+  if (interaction.customId?.startsWith(`${BLCARD_ID}:`)) {
+    return handleBlacklistCardInteraction(interaction).catch((err) => console.error("[blacklistCard]", err));
   }
   if (interaction.customId?.startsWith(`${HELP_CUSTOM_ID}:`)) {
     return handleHelpNavInteraction(interaction).catch((err) => console.error("[helpNavigator]", err));
@@ -243,12 +250,14 @@ const PANEL_COMMANDS = [
   { name: "unban", category: "Moderation", description: "Debannit un membre." },
   { name: "banall", category: "Moderation", description: "Bannit plusieurs membres a la fois." },
   { name: "unbanall", category: "Moderation", description: "Debannit tous les membres bannis." },
-  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs), avec raisonid:/preuve:/grade:/duree: optionnels." },
+  { name: "zinkiller", category: "Moderation", description: "Ban persistant (re-banni si debanni ailleurs) - ouvre la carte Blacklist (raisons/preuves/confirmation)." },
   { name: "unzinkiller", category: "Moderation", description: "Retire le ban persistant d'un membre." },
   { name: "zinkillerlist", category: "Moderation", description: "Liste les bans persistants actifs." },
+  { name: "blinfo", category: "Moderation", description: "Consulte une entree blacklist (raison, preuve, grade, duree)." },
   { name: "reasonadd", category: "Moderation", description: "Ajoute une raison de ban predefinie (optionnellement preuve obligatoire)." },
   { name: "reasondel", category: "Moderation", description: "Retire une raison de ban predefinie." },
   { name: "reasonproof", category: "Moderation", description: "Bascule si une raison predefinie exige une preuve." },
+  { name: "reasongrade", category: "Moderation", description: "Attache un grade (etiquette libre) a une raison predefinie." },
   { name: "reasonlist", category: "Moderation", description: "Liste les raisons de ban predefinies." },
   { name: "perms", category: "Moderation", description: "Affiche les paliers de permissions accordes et les commandes qu'ils debloquent." },
   { name: "helpall", category: "Moderation", description: "Affiche les paliers de permissions accordes et les roles associes." },
