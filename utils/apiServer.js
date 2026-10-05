@@ -141,6 +141,17 @@ function startApiServer(
       return send(res, 204, null);
     }
 
+    // Vue groupée pour la page "Rôles" du panel : la règle de CHAQUE commande
+    // en un seul appel (au lieu d'une requête par commande) — toujours
+    // utils/commandRules.js::getRule, jamais un état recalculé autrement.
+    if (url.pathname === "/commands/rules" && req.method === "GET" && commandRules) {
+      const guildId = url.searchParams.get("guildId");
+      if (!guildId) return send(res, 400, { error: "guildId_required" });
+      const byCommand = {};
+      for (const c of commands) byCommand[c.name] = commandRules.getRule(guildId, c.name);
+      return send(res, 200, byCommand);
+    }
+
     // "Permissions & règles" — proxy fin vers utils/commandRules.js, le
     // MÊME store que le panel Discord existant (&panel/!!config/=panel >
     // "Gestion des commandes") : jamais un deuxième système, jamais une
