@@ -1,4 +1,5 @@
 require("dotenv").config();
+console.log(`[boot] Moderation — démarrage (Node ${process.version}) · DATA_DIR=${process.env.DATA_DIR || "défaut"} · API panel ${process.env.PANEL_API_KEY ? "activée" : "DÉSACTIVÉE (PANEL_API_KEY manquant)"}`);
 const { Client, GatewayIntentBits, MessageFlags } = require("discord.js");
 const statsStore = require("./utils/statsStore");
 const { getPrefix, setPrefix } = require("./utils/prefixStore");
@@ -53,6 +54,7 @@ const client = new Client({
 
 client.once("clientReady", () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
+  console.log(`[boot] Prêt — ${client.guilds.cache.size} serveur(s), API panel sur le port ${process.env.PANEL_API_PORT || "défaut"}.`);
 });
 
 /** Cible en premier argument, pour -baninfo (menu de raisons), pas un texte libre. */
@@ -351,4 +353,7 @@ require("./utils/apiServer")(client, {
   messageStore: banAllDmMessage,
   systems: MODERATION_SYSTEMS,
 });
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch((err) => {
+  console.error("[moderation-bot] connexion à Discord impossible :", err.message);
+  process.exit(1);
+});
